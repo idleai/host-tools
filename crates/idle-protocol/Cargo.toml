@@ -28,5 +28,9 @@ required-features = ["schema"]
 name = "export_projections_schema"
 required-features = ["schema"]
 
+[[example]]
+name = "export_standalone_schema"
+required-features = ["schema"]
+
 [lints]
 workspace = true

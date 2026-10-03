@@ -7,6 +7,7 @@ workspace has no dependency on app-core, a renderer or the VS Code API.
 | Package | Responsibility | Targets |
 | --- | --- | --- |
 | `idle-protocol` | Versioned requests, responses, events and JSON Schema shared by clients, Evo and managed/standalone services. | Native and WASM |
+| `idle-coordination` | Repository metadata, settings/rules, views, presence, grants, controller ownership and native peer coordination. Library and framed service. | Native |
 | `idle-history` | Portable history/source contracts, display classifications and pure peer/query helpers. | Native and WASM |
 | `idle-peer-state` | WASM bindings for the shared peer connection helpers. | Native build and WASM |
 | `idle-history-import` | Claude, Codex and human archive import, schema conversion and source reconciliation. | Native |
@@ -21,8 +22,9 @@ install the binary without a Codex source checkout.
 
 ## Build and verify
 
-The toolchain is pinned in `rust-toolchain.toml`. Install Node 22, Git,
-`cargo-deny` 0.20.2 and the WASM target, then run:
+The toolchain is pinned in `rust-toolchain.toml`. Install Node 22, Python 3.11 or
+newer, Git, OpenSSL development libraries, `cargo-deny` 0.20.2 and the WASM target,
+then run:
 
 ```sh
 npm --prefix packages/history-runtime ci
@@ -33,6 +35,21 @@ npm --prefix packages/history-runtime ci
 The lint suite checks all native packages and explicitly checks the three
 portable packages on WASM. It retains import fixtures, schema drift checks,
 durable recovery tests and Rust/Clippy/Rustdoc/dependency checks.
+It also tests two native peers, interoperability with the existing TypeScript
+peer bridge, service restart and managed handoff through an injected adapter.
+The full check runs the pinned Microsoft Dev Tunnels SDK's unit tests with the
+workspace SSH patches. These checks need no cloud account; the optional
+[live relay smoke test](docs/coordination.md#verification) creates temporary relays.
+
+Native coordination consumers need no Node installation, app-core or VS Code:
+
+```sh
+cargo build --locked -p idle-coordination --bin idle-coordination
+target/debug/idle-coordination --config /absolute/path/service.json
+```
+
+The executable serves framed JSON on stdin/stdout. See the
+[configuration and API guide](docs/coordination.md) before starting it.
 
 The full check also builds the portable peer coordinator and runs a standalone
 collection process with the real exporter. By default it builds the exporter
@@ -51,6 +68,8 @@ restart and source replacement, without app-core or VS Code.
   [conversion](docs/import-conversion.md) and [scaling](docs/import-scaling.md).
 - [Coordination protocol](crates/idle-protocol/README.md): shared types, JSON
   Schema and wire compatibility.
+- [Native coordination](docs/coordination.md): authority, native service, peer
+  lifecycle, managed adoption and coordinated upgrades.
 - [Peer coordinator](packages/history-runtime/README.md): transport injection
   and native worker integration.
 

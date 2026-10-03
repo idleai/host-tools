@@ -37,6 +37,13 @@ explicit partial/unavailable results. Call `validate()` before admitting decoded
 inputs. Evo owns controller payload meanings and maps them into this contract;
 this crate does not interpret Note/Link payloads or persist controller state.
 
+`v1::standalone` adds repository mutations, authorized snapshots, transient
+presence and bounded invalidation recovery. Mutations use the existing
+`Request<T>` / `Response<T>` envelope. `v1::configuration` retains the f27
+`Settings` / `AgentRules`, `schema_version` and complete `json` text fields;
+each document has an independent conditional revision. Existing command/event
+enums and their schema remain unchanged.
+
 ## Schema and verification
 
 The optional `schema` feature enables JSON Schema generation. From the repo root:
@@ -46,6 +53,8 @@ cargo run --locked -p idle-protocol --features schema \
   --example export_schema -- crates/idle-protocol/schemas/v1.json
 cargo run --locked -p idle-protocol --features schema \
   --example export_projections_schema -- crates/idle-protocol/schemas/projections-v1.json
+cargo run --locked -p idle-protocol --features schema \
+  --example export_standalone_schema -- crates/idle-protocol/schemas/standalone-v1.json
 ./scripts/lint.sh
 ```
 
@@ -59,3 +68,7 @@ The separate [projection schema](schemas/projections-v1.json) and
 [projection fixture](tests/fixtures/projection_snapshot.json) define the shared
 input shape. See app-core's [integration guide](../../../app-core/docs/projections.md) for
 engine queries, client interactions and the f11 mapper boundary.
+
+The additive [repository schema](schemas/standalone-v1.json) covers
+`RepositoryMessage`. The [native service guide](../../docs/coordination.md)
+describes its endpoint framing, authorization and f15/f17 runtime boundary.

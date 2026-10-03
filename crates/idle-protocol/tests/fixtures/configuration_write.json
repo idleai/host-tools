@@ -1,0 +1,26 @@
+{
+  "api_version": "1",
+  "context": {
+    "workspace_id": "workspace-one",
+    "request_id": "settings-42",
+    "contributor": {
+      "contributor_id": "contributor-alice",
+      "authenticated_as": { "issuer": "peer-key", "subject": "alice-key" }
+    },
+    "expires_at": "2000"
+  },
+  "control_fence": null,
+  "body": {
+    "kind": "configuration",
+    "data": {
+      "document": "Settings",
+      "change": {
+        "expected": { "kind": "revision", "value": "9007199254740995" },
+        "value": {
+          "schema_version": 1,
+          "json": "{\"future\":{\"enabled\":true},\"theme\":\"dark\"}"
+        }
+      }
+    }
+  }
+}

@@ -58,7 +58,8 @@ check "cargo clippy" cargo clippy --workspace --all-targets --all-features --loc
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-check "engine integration tools" cargo build --manifest-path ../editchain/Cargo.toml --locked -p editchain --bin editchain
+check "engine integration tools" cargo build --manifest-path ../editchain/Cargo.toml --locked -p editchain --bin editchain -p editchain-sync --bin editchain-peer
+check "TypeScript interoperability tools" npm --prefix packages/history-runtime run build
 check "cargo test" cargo test --workspace --all-features --locked
 
 # ---------------------------------------------------------------------------

@@ -26,6 +26,12 @@ confidence-threshold = 0.8
 [licenses.private]
 ignore = true
 
+# The SDK package omits license metadata; its repository supplies this MIT license.
+[[licenses.clarify]]
+name = "tunnels"
+expression = "MIT"
+license-files = [{ path = "../LICENSE", hash = 0x45c4defe }]
+
 [bans]
 multiple-versions = "warn"
 wildcards = "allow"
@@ -35,4 +41,7 @@ highlight = "all"
 unknown-registry = "warn"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+allow-git = [
+    "https://github.com/microsoft/dev-tunnels",
+    "https://github.com/microsoft/vscode-russh",
+]

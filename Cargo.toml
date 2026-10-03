@@ -1,13 +1,27 @@
 [workspace]
 members = [
+    "crates/idle-coordination",
     "crates/idle-history",
     "crates/idle-history-collector",
     "crates/idle-history-import",
     "crates/idle-history-tools",
     "crates/idle-peer-state",
     "crates/idle-protocol",
+    "crates/idle-ssh-buffer-compat",
 ]
 resolver = "3"
+
+# Dev Tunnels uses Microsoft's OpenSSL SSH fork, as does the native VS Code CLI.
+# Pin every package to the same reviewed source; keep SDK/SSH integration tests together.
+[patch.crates-io]
+russh = { git = "https://github.com/microsoft/vscode-russh", rev = "0bced23016d869dc847b25840268896fd0969b69" }
+russh-keys = { git = "https://github.com/microsoft/vscode-russh", rev = "0bced23016d869dc847b25840268896fd0969b69" }
+russh-cryptovec = { path = "crates/idle-ssh-buffer-compat" }
+
+# The SSH fork's original buffer predates RUSTSEC-2026-0153. Preserve its API
+# while routing allocation/growth to the fixed upstream implementation.
+[patch."https://github.com/microsoft/vscode-russh"]
+russh-cryptovec = { path = "crates/idle-ssh-buffer-compat" }
 
 [workspace.lints.rust]
 warnings = { level = "deny", priority = -3 }

@@ -38,9 +38,20 @@ schema and IDs remain unchanged. Another editor supplies its own observations
 and recorder identity. A management TUI can read history and issue commands
 without an editor recorder.
 
-The portable peer coordinator remains TypeScript. Its implementation now lives
-in this repository; hosts still supply transports, credentials and persistence.
-Moving its source does not make it a native Rust service.
+`idle-coordination` supplies the native Rust authority, peer coordinator and
+framed service. Hosts inject authentication, credentials, persistence and relay
+transport. The production relay adapter uses Microsoft's Rust Dev Tunnels SDK
+for management, host and client connections. Peer-v5 authentication, inventory
+and replication remain in EditChain; lifecycle state comes from `idle-history`.
+The existing TypeScript coordinator remains available for current hosts and is
+tested against the Rust coordinator. Native consumers require neither Node nor
+app-core. See [native coordination](coordination.md) for ownership and upgrades.
+
+One authority serializes repository metadata, independent resource grants and
+controller leases. History replicas do not elect competing metadata authorities.
+An embedding host authenticates each principal outside the request body and
+routes repository commands to that authority. Evo's live grant/lease integration
+is the separate f15/f17 step; metadata success never asserts runtime acceptance.
 
 ## Offstage client boundary
 
