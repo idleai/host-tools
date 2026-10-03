@@ -1,0 +1,187 @@
+{
+  "version": "1",
+  "workspace_id": "workspace",
+  "chain": "chain",
+  "inputs": [
+    {
+      "kind": "activity",
+      "freshness": {
+        "status": "current",
+        "generated_at": "1000",
+        "checkpoint": "opaque/checkpoint"
+      },
+      "availability": "complete",
+      "total": "1",
+      "rows": [
+        {
+          "key": "stable-row",
+          "title": "Check exact text",
+          "summary": "Supplied details 🌍\n",
+          "status": "provider/active",
+          "labels": [
+            "provider/label"
+          ],
+          "sources": [
+            {
+              "observation": "1010101010101010101010101010101010101010101010101010101010101010",
+              "item": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
+              "record_hash": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0"
+            }
+          ],
+          "related": [
+            {
+              "observation": null,
+              "item": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+              "record_hash": null
+            }
+          ]
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "kind": "task",
+      "freshness": {
+        "status": "current",
+        "generated_at": "1000",
+        "checkpoint": "opaque/checkpoint"
+      },
+      "availability": "complete",
+      "total": "1",
+      "rows": [
+        {
+          "key": "stable-row",
+          "title": "Check exact text",
+          "summary": "Supplied details 🌍\n",
+          "status": "provider/active",
+          "labels": [
+            "provider/label"
+          ],
+          "sources": [
+            {
+              "observation": "1010101010101010101010101010101010101010101010101010101010101010",
+              "item": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
+              "record_hash": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0"
+            }
+          ],
+          "related": [
+            {
+              "observation": null,
+              "item": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+              "record_hash": null
+            }
+          ]
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "kind": "error",
+      "freshness": {
+        "status": "current",
+        "generated_at": "1000",
+        "checkpoint": "opaque/checkpoint"
+      },
+      "availability": "complete",
+      "total": "1",
+      "rows": [
+        {
+          "key": "stable-row",
+          "title": "Check exact text",
+          "summary": "Supplied details 🌍\n",
+          "status": "provider/active",
+          "labels": [
+            "provider/label"
+          ],
+          "sources": [
+            {
+              "observation": "1010101010101010101010101010101010101010101010101010101010101010",
+              "item": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
+              "record_hash": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0"
+            }
+          ],
+          "related": [
+            {
+              "observation": null,
+              "item": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+              "record_hash": null
+            }
+          ]
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "kind": "triage",
+      "freshness": {
+        "status": "current",
+        "generated_at": "1000",
+        "checkpoint": "opaque/checkpoint"
+      },
+      "availability": "complete",
+      "total": "1",
+      "rows": [
+        {
+          "key": "stable-row",
+          "title": "Check exact text",
+          "summary": "Supplied details 🌍\n",
+          "status": "provider/active",
+          "labels": [
+            "provider/label"
+          ],
+          "sources": [
+            {
+              "observation": "1010101010101010101010101010101010101010101010101010101010101010",
+              "item": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
+              "record_hash": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0"
+            }
+          ],
+          "related": [
+            {
+              "observation": null,
+              "item": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+              "record_hash": null
+            }
+          ]
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "kind": "need_input",
+      "freshness": {
+        "status": "current",
+        "generated_at": "1000",
+        "checkpoint": "opaque/checkpoint"
+      },
+      "availability": "complete",
+      "total": "1",
+      "rows": [
+        {
+          "key": "stable-row",
+          "title": "Check exact text",
+          "summary": "Supplied details 🌍\n",
+          "status": "provider/active",
+          "labels": [
+            "provider/label"
+          ],
+          "sources": [
+            {
+              "observation": "1010101010101010101010101010101010101010101010101010101010101010",
+              "item": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
+              "record_hash": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0"
+            }
+          ],
+          "related": [
+            {
+              "observation": null,
+              "item": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+              "record_hash": null
+            }
+          ]
+        }
+      ],
+      "gaps": []
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+[package]
+name = "idle-protocol"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+description = "Versioned API and event contracts for standalone and managed Idle coordination"
+repository = "https://github.com/idleai/host-tools"
+readme = "README.md"
+keywords = ["idle", "coordination", "protocol"]
+categories = ["api-bindings"]
+
+[features]
+schema = ["dep:schemars"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+schemars = { version = "1.2.2", optional = true }
+
+[dev-dependencies]
+serde_json = "1"
+
+[[example]]
+name = "export_schema"
+required-features = ["schema"]
+
+[[example]]
+name = "export_projections_schema"
+required-features = ["schema"]
+
+[lints]
+workspace = true

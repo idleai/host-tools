@@ -1,0 +1,197 @@
+{
+  "api_version": "1",
+  "request": {
+    "workspace_id": "workspace-one",
+    "contributor_id": "contributor-bob",
+    "request_id": "catch-up-42"
+  },
+  "result": {
+    "status": "success",
+    "data": {
+      "kind": "catch_up",
+      "data": {
+        "kind": "events",
+        "data": {
+          "after": {
+            "workspace_id": "workspace-one",
+            "contributor_id": "contributor-bob",
+            "stream_id": "stream-standalone-bob-1",
+            "position": "10"
+          },
+          "events": [
+            {
+              "api_version": "1",
+              "event_id": "event-revoke-bob",
+              "cursor": {
+                "workspace_id": "workspace-one",
+                "contributor_id": "contributor-bob",
+                "stream_id": "stream-standalone-bob-1",
+                "position": "11"
+              },
+              "produced_at": "1300",
+              "recorded_at": "1301",
+              "causation": {
+                "workspace_id": "workspace-one",
+                "contributor_id": "contributor-alice",
+                "request_id": "revoke-42"
+              },
+              "body": {
+                "kind": "grant_changed",
+                "data": {
+                  "revision": "2",
+                  "value": {
+                    "id": "grant-session-bob",
+                    "grantee": "contributor-bob",
+                    "granted_by": "contributor-alice",
+                    "scope": {
+                      "kind": "session",
+                      "session_id": "session-shared",
+                      "permissions": [
+                        "observe",
+                        "submit_input"
+                      ]
+                    },
+                    "expires_at": null,
+                    "status": {
+                      "kind": "revoked",
+                      "revoked_at": "1300",
+                      "revoked_by": "contributor-alice"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "api_version": "1",
+              "event_id": "event-release",
+              "cursor": {
+                "workspace_id": "workspace-one",
+                "contributor_id": "contributor-bob",
+                "stream_id": "stream-standalone-bob-1",
+                "position": "12"
+              },
+              "produced_at": "1400",
+              "recorded_at": "1401",
+              "causation": {
+                "workspace_id": "workspace-one",
+                "contributor_id": "contributor-alice",
+                "request_id": "release-42"
+              },
+              "body": {
+                "kind": "control_changed",
+                "data": {
+                  "workspace_id": "workspace-one",
+                  "last_epoch": "9007199254740995",
+                  "lease": null
+                }
+              }
+            },
+            {
+              "api_version": "1",
+              "event_id": "event-runtime-complete",
+              "cursor": {
+                "workspace_id": "workspace-one",
+                "contributor_id": "contributor-bob",
+                "stream_id": "stream-standalone-bob-1",
+                "position": "13"
+              },
+              "produced_at": "1500",
+              "recorded_at": "1800",
+              "causation": {
+                "workspace_id": "workspace-one",
+                "contributor_id": "contributor-bob",
+                "request_id": "input-42"
+              },
+              "body": {
+                "kind": "input_updated",
+                "data": {
+                  "input": {
+                    "session_id": "session-shared",
+                    "request": {
+                      "workspace_id": "workspace-one",
+                      "contributor_id": "contributor-bob",
+                      "request_id": "input-42"
+                    }
+                  },
+                  "contributor": {
+                    "contributor_id": "contributor-bob",
+                    "authenticated_as": {
+                      "issuer": "peer-key",
+                      "subject": "bob-key"
+                    }
+                  },
+                  "runtime_id": "runtime-evo",
+                  "revision": "4",
+                  "state": {
+                    "kind": "completed",
+                    "delivery": {
+                      "accepted_at": "1100",
+                      "order": "9007199254740993",
+                      "ordered_at": "1150"
+                    },
+                    "completed_at": "1500",
+                    "outcome": {
+                      "kind": "succeeded"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "api_version": "1",
+              "event_id": "event-late-health",
+              "cursor": {
+                "workspace_id": "workspace-one",
+                "contributor_id": "contributor-bob",
+                "stream_id": "stream-standalone-bob-1",
+                "position": "14"
+              },
+              "produced_at": "960",
+              "recorded_at": "1900",
+              "causation": {
+                "workspace_id": "workspace-one",
+                "contributor_id": "contributor-bob",
+                "request_id": "input-42"
+              },
+              "body": {
+                "kind": "host_changed",
+                "data": {
+                  "revision": "2",
+                  "value": {
+                    "id": "host-shared",
+                    "owner": "contributor-alice",
+                    "name": "Shared workstation",
+                    "capabilities": [
+                      "sessions",
+                      "files",
+                      "processes",
+                      "local_models"
+                    ],
+                    "health": {
+                      "availability": "available",
+                      "observed_at": "950",
+                      "valid_until": "2500"
+                    },
+                    "routes": [
+                      {
+                        "protocol": "peer",
+                        "reference": "route-workstation"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "through": {
+            "workspace_id": "workspace-one",
+            "contributor_id": "contributor-bob",
+            "stream_id": "stream-standalone-bob-1",
+            "position": "15"
+          },
+          "has_more": false
+        }
+      }
+    }
+  }
+}

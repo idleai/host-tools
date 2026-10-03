@@ -1,0 +1,29 @@
+{
+  "api_version": "1",
+  "context": {
+    "workspace_id": "workspace-one",
+    "request_id": "acquire-42",
+    "contributor": {
+      "contributor_id": "contributor-bob",
+      "authenticated_as": {
+        "issuer": "peer-key",
+        "subject": "bob-key"
+      }
+    },
+    "expires_at": "2000"
+  },
+  "control_fence": null,
+  "body": {
+    "kind": "control",
+    "data": {
+      "kind": "acquire",
+      "holder": {
+        "runtime_id": "runtime-control",
+        "host_id": "host-shared",
+        "session_id": "session-control"
+      },
+      "expected_epoch": "9007199254740995",
+      "lease_duration_ms": 30000
+    }
+  }
+}

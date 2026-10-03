@@ -1,0 +1,29 @@
+{
+  "api_version": "1",
+  "context": {
+    "workspace_id": "workspace-one",
+    "request_id": "input-42",
+    "contributor": {
+      "contributor_id": "contributor-bob",
+      "authenticated_as": {
+        "issuer": "peer-key",
+        "subject": "bob-key"
+      }
+    },
+    "expires_at": "2000"
+  },
+  "control_fence": null,
+  "body": {
+    "session_id": "session-shared",
+    "text": "Continue the investigation.\nKeep the original tool output."
+  },
+  "coordination_receipt": {
+    "request": {
+      "workspace_id": "workspace-one",
+      "contributor_id": "contributor-bob",
+      "request_id": "input-42"
+    },
+    "received_at": "1000",
+    "retry_until": "5000"
+  }
+}

@@ -1,0 +1,3729 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WireMessage",
+  "description": "Schema root covering each top-level wire shape without an extra wire wrapper.\n\nEndpoints should decode their concrete type, such as `Request<Command>` or\n`Response<QueryResult>`. This union is for schema export and inspection.",
+  "anyOf": [
+    {
+      "description": "Command endpoint request.",
+      "$ref": "#/$defs/Request"
+    },
+    {
+      "description": "Query endpoint request.",
+      "$ref": "#/$defs/Request2"
+    },
+    {
+      "description": "Command endpoint response.",
+      "$ref": "#/$defs/Response"
+    },
+    {
+      "description": "Query endpoint response.",
+      "$ref": "#/$defs/Response2"
+    },
+    {
+      "description": "Direct/forwarded attributed runtime submission.",
+      "$ref": "#/$defs/RuntimeSubmission"
+    },
+    {
+      "description": "Direct runtime acknowledgement, distinct from a coordination receipt.",
+      "$ref": "#/$defs/Response3"
+    },
+    {
+      "description": "Direct runtime input acknowledgement/status.",
+      "$ref": "#/$defs/RuntimeReport"
+    },
+    {
+      "description": "Retained coordination event.",
+      "$ref": "#/$defs/Event"
+    }
+  ],
+  "$defs": {
+    "ApiError": {
+      "description": "Serializable failure with no provider SDK types or secret diagnostics.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "description": "Stable machine-readable classification.",
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "description": "Safe human-readable context, not an authorization decision.",
+          "type": "string"
+        },
+        "retry": {
+          "description": "Explicit retry/reconciliation advice.",
+          "$ref": "#/$defs/RetryAdvice"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retry"
+      ]
+    },
+    "ApiResult": {
+      "description": "Stable tagged result representation, independent of HTTP status codes.",
+      "oneOf": [
+        {
+          "description": "Operation-specific result; inspect its acknowledgement stage.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/CommandResult"
+            },
+            "status": {
+              "type": "string",
+              "const": "success"
+            }
+          },
+          "required": [
+            "status",
+            "data"
+          ]
+        },
+        {
+          "description": "Explicit failure; inspect retry advice rather than changing request IDs.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ApiError"
+            },
+            "status": {
+              "type": "string",
+              "const": "failure"
+            }
+          },
+          "required": [
+            "status",
+            "data"
+          ]
+        }
+      ]
+    },
+    "ApiResult2": {
+      "description": "Stable tagged result representation, independent of HTTP status codes.",
+      "oneOf": [
+        {
+          "description": "Operation-specific result; inspect its acknowledgement stage.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/QueryResult"
+            },
+            "status": {
+              "type": "string",
+              "const": "success"
+            }
+          },
+          "required": [
+            "status",
+            "data"
+          ]
+        },
+        {
+          "description": "Explicit failure; inspect retry advice rather than changing request IDs.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ApiError"
+            },
+            "status": {
+              "type": "string",
+              "const": "failure"
+            }
+          },
+          "required": [
+            "status",
+            "data"
+          ]
+        }
+      ]
+    },
+    "ApiResult3": {
+      "description": "Stable tagged result representation, independent of HTTP status codes.",
+      "oneOf": [
+        {
+          "description": "Operation-specific result; inspect its acknowledgement stage.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/RuntimeInputUpdate"
+            },
+            "status": {
+              "type": "string",
+              "const": "success"
+            }
+          },
+          "required": [
+            "status",
+            "data"
+          ]
+        },
+        {
+          "description": "Explicit failure; inspect retry advice rather than changing request IDs.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ApiError"
+            },
+            "status": {
+              "type": "string",
+              "const": "failure"
+            }
+          },
+          "required": [
+            "status",
+            "data"
+          ]
+        }
+      ]
+    },
+    "ApiVersion": {
+      "description": "Required protocol discriminator, independent of the Cargo package version.",
+      "oneOf": [
+        {
+          "description": "The v1 JSON representation.",
+          "type": "string",
+          "const": "1"
+        }
+      ]
+    },
+    "Availability": {
+      "description": "Observed reachability, not permission to use a resource.",
+      "oneOf": [
+        {
+          "description": "No recent authoritative observation.",
+          "type": "string",
+          "const": "unknown"
+        },
+        {
+          "description": "Recently reported healthy.",
+          "type": "string",
+          "const": "available"
+        },
+        {
+          "description": "Temporarily unreachable; identities and running sessions remain intact.",
+          "type": "string",
+          "const": "unavailable"
+        }
+      ]
+    },
+    "BackendReceipt": {
+      "description": "Durable coordination receipt, not Evo acceptance, order or completion.\n\nIssued only after the request and its forwarding/retry record are durable.\n`received_at` is the original receipt time even when this receipt is replayed.",
+      "type": "object",
+      "properties": {
+        "received_at": {
+          "description": "Time the coordination provider durably recorded the submission.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "request": {
+          "description": "Original contributor and retry identity.",
+          "$ref": "#/$defs/RequestKey"
+        },
+        "retry_until": {
+          "description": "Inclusive minimum retention of the original receipt/result; at least the\nrequest's first-receipt deadline. Later unknown retries fail closed.",
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "request",
+        "received_at",
+        "retry_until"
+      ]
+    },
+    "ChainRef": {
+      "description": "Opaque engine-issued logical chain reference; not a storage URL or workspace ID.",
+      "type": "string"
+    },
+    "Change": {
+      "description": "Proposed metadata change; the provider assigns the resulting revision.",
+      "type": "object",
+      "properties": {
+        "expected": {
+          "description": "Concurrency precondition checked atomically with the write.",
+          "$ref": "#/$defs/WriteCondition"
+        },
+        "value": {
+          "description": "Proposed value, subject to authorization and domain validation.",
+          "$ref": "#/$defs/Workspace"
+        }
+      },
+      "required": [
+        "expected",
+        "value"
+      ]
+    },
+    "Change2": {
+      "description": "Proposed metadata change; the provider assigns the resulting revision.",
+      "type": "object",
+      "properties": {
+        "expected": {
+          "description": "Concurrency precondition checked atomically with the write.",
+          "$ref": "#/$defs/WriteCondition"
+        },
+        "value": {
+          "description": "Proposed value, subject to authorization and domain validation.",
+          "$ref": "#/$defs/Session"
+        }
+      },
+      "required": [
+        "expected",
+        "value"
+      ]
+    },
+    "Change3": {
+      "description": "Proposed metadata change; the provider assigns the resulting revision.",
+      "type": "object",
+      "properties": {
+        "expected": {
+          "description": "Concurrency precondition checked atomically with the write.",
+          "$ref": "#/$defs/WriteCondition"
+        },
+        "value": {
+          "description": "Proposed value, subject to authorization and domain validation.",
+          "$ref": "#/$defs/ComputeHost"
+        }
+      },
+      "required": [
+        "expected",
+        "value"
+      ]
+    },
+    "Change4": {
+      "description": "Proposed metadata change; the provider assigns the resulting revision.",
+      "type": "object",
+      "properties": {
+        "expected": {
+          "description": "Concurrency precondition checked atomically with the write.",
+          "$ref": "#/$defs/WriteCondition"
+        },
+        "value": {
+          "description": "Proposed value, subject to authorization and domain validation.",
+          "$ref": "#/$defs/ModelProvider"
+        }
+      },
+      "required": [
+        "expected",
+        "value"
+      ]
+    },
+    "Change5": {
+      "description": "Proposed metadata change; the provider assigns the resulting revision.",
+      "type": "object",
+      "properties": {
+        "expected": {
+          "description": "Concurrency precondition checked atomically with the write.",
+          "$ref": "#/$defs/WriteCondition"
+        },
+        "value": {
+          "description": "Proposed value, subject to authorization and domain validation.",
+          "$ref": "#/$defs/Model"
+        }
+      },
+      "required": [
+        "expected",
+        "value"
+      ]
+    },
+    "Command": {
+      "description": "Coordination operations, with runtime input routing explicitly identified.",
+      "oneOf": [
+        {
+          "description": "Create/update workspace metadata, including repository attachments or adoption.\nThe chain and existing identities are immutable across updates.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Change"
+            },
+            "kind": {
+              "type": "string",
+              "const": "put_workspace"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Invite, update or revoke workspace members.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/MembershipCommand"
+            },
+            "kind": {
+              "type": "string",
+              "const": "membership"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Register/update directory metadata; never a claim that a runtime started.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Change2"
+            },
+            "kind": {
+              "type": "string",
+              "const": "put_session"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Publish or detach workspace resource bindings.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ResourceCommand"
+            },
+            "kind": {
+              "type": "string",
+              "const": "resource"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Issue or revoke one independently scoped resource grant.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/GrantCommand"
+            },
+            "kind": {
+              "type": "string",
+              "const": "grant"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Acquire, renew or release Control ownership.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ControlCommand"
+            },
+            "kind": {
+              "type": "string",
+              "const": "control"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Route unchanged attributed input to Evo; coordination returns receipt only.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/SubmitInput"
+            },
+            "kind": {
+              "type": "string",
+              "const": "submit_input"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        }
+      ]
+    },
+    "CommandResult": {
+      "description": "Distinct acknowledgement stages; no variant infers runtime success.",
+      "oneOf": [
+        {
+          "description": "Input was durably received for routing only.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/BackendReceipt"
+            },
+            "kind": {
+              "type": "string",
+              "const": "received"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Metadata mutation and its notification events were durably committed.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/CommitReceipt"
+            },
+            "kind": {
+              "type": "string",
+              "const": "committed"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Control mutation committed; the returned lease still needs live fencing.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "commit": {
+                  "description": "Durable mutation receipt.",
+                  "$ref": "#/$defs/CommitReceipt"
+                },
+                "ownership": {
+                  "description": "Resulting ownership state, including the epoch high watermark.",
+                  "$ref": "#/$defs/ControlOwnership"
+                }
+              },
+              "required": [
+                "commit",
+                "ownership"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "const": "control"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        }
+      ]
+    },
+    "CommitReceipt": {
+      "description": "Metadata committed atomically with its retained events and deduplication result.",
+      "type": "object",
+      "properties": {
+        "committed_at": {
+          "description": "Authority-clock commit time.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "receipt": {
+          "description": "Original mutation identity and receipt retention guarantee.",
+          "$ref": "#/$defs/BackendReceipt"
+        },
+        "through": {
+          "description": "Boundary containing the mutation's events. Recover through it before\nadvancing a local cursor; this receipt alone cannot update the local view.",
+          "$ref": "#/$defs/RecoveryCursor"
+        }
+      },
+      "required": [
+        "receipt",
+        "committed_at",
+        "through"
+      ]
+    },
+    "Completion": {
+      "description": "Terminal runtime result; completion is not implied by receipt or ordering.",
+      "oneOf": [
+        {
+          "description": "Runtime confirmed successful processing.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "succeeded"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Runtime confirmed failed processing, possibly after partial execution.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ApiError"
+            },
+            "kind": {
+              "type": "string",
+              "const": "failed"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Runtime confirmed cancellation, possibly after partial execution.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "cancelled"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "ComputeHost": {
+      "description": "A host's publication in this workspace; other workspaces need separate bindings.",
+      "type": "object",
+      "properties": {
+        "capabilities": {
+          "description": "Advertised capabilities.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HostCapability"
+          }
+        },
+        "health": {
+          "description": "Observed availability.",
+          "$ref": "#/$defs/Health"
+        },
+        "id": {
+          "description": "Reusable host identity.",
+          "$ref": "#/$defs/HostId"
+        },
+        "name": {
+          "description": "Display label.",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Owner/provisioning contributor, distinct from connected users.",
+          "$ref": "#/$defs/ContributorId"
+        },
+        "routes": {
+          "description": "Authorized discovery references.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConnectionRoute"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "owner",
+        "name",
+        "capabilities",
+        "health",
+        "routes"
+      ]
+    },
+    "ComputePermission": {
+      "description": "Host permission checked by Evo at the corresponding execution boundary.",
+      "oneOf": [
+        {
+          "description": "Establish a host connection without permission to execute operations.",
+          "type": "string",
+          "const": "connect"
+        },
+        {
+          "description": "Read files within the runtime's permitted sandbox.",
+          "type": "string",
+          "const": "read_files"
+        },
+        {
+          "description": "Write files within the runtime's permitted sandbox.",
+          "type": "string",
+          "const": "write_files"
+        },
+        {
+          "description": "Start or control permitted processes.",
+          "type": "string",
+          "const": "execute"
+        },
+        {
+          "description": "Install and serve local models on the host.",
+          "type": "string",
+          "const": "manage_models"
+        }
+      ]
+    },
+    "ConnectionRoute": {
+      "description": "Discovery reference resolved through an authenticated transport adapter.\n\nThis carries neither credentials nor a cloud-specific tunnel/relay type.",
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "description": "Adapter protocol identifier, negotiated by consumers.",
+          "type": "string"
+        },
+        "reference": {
+          "description": "Opaque, non-secret lookup reference; not a bearer capability.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocol",
+        "reference"
+      ]
+    },
+    "Contributor": {
+      "description": "Public contributor directory entry, scoped by the enclosing workspace.",
+      "type": "object",
+      "properties": {
+        "display_name": {
+          "description": "Presentation label, never an authorization key.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Stable contributor identity.",
+          "$ref": "#/$defs/ContributorId"
+        },
+        "identities": {
+          "description": "Verified identity links visible to the requesting audience.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExternalIdentity"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "display_name",
+        "identities"
+      ]
+    },
+    "ContributorId": {
+      "description": "Actual human or service contributor; distinct from a session or host owner.",
+      "type": "string"
+    },
+    "ContributorIdentity": {
+      "description": "Attribution resolved by an authenticated adapter, not proof of authentication.\n\nA receiving authority MUST verify these fields against the authenticated\nconnection. Forwarders preserve the contributor instead of substituting the\nsession owner, host owner or relay's service identity.",
+      "type": "object",
+      "properties": {
+        "authenticated_as": {
+          "description": "Verified identity used for this submission; no token material.",
+          "$ref": "#/$defs/ExternalIdentity"
+        },
+        "contributor_id": {
+          "description": "Contributor to whom this request is attributed.",
+          "$ref": "#/$defs/ContributorId"
+        }
+      },
+      "required": [
+        "contributor_id",
+        "authenticated_as"
+      ]
+    },
+    "ControlCommand": {
+      "description": "Atomic ownership mutations; all are retried with the original request key.",
+      "oneOf": [
+        {
+          "description": "Acquire only if no unexpired lease exists and the watermark still matches.",
+          "type": "object",
+          "properties": {
+            "expected_epoch": {
+              "description": "Last observed epoch; a successful acquisition assigns a strictly greater one.",
+              "$ref": "#/$defs/ControlEpoch"
+            },
+            "holder": {
+              "description": "Proposed authenticated runtime holder.",
+              "$ref": "#/$defs/ControlHolder"
+            },
+            "kind": {
+              "type": "string",
+              "const": "acquire"
+            },
+            "lease_duration_ms": {
+              "description": "Requested positive lease duration, bounded by provider policy.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "kind",
+            "holder",
+            "expected_epoch",
+            "lease_duration_ms"
+          ]
+        },
+        {
+          "description": "Extend the current unexpired lease without changing its epoch.",
+          "type": "object",
+          "properties": {
+            "fence": {
+              "description": "Exact current ownership; stale holders cannot renew.",
+              "$ref": "#/$defs/ControlFence"
+            },
+            "kind": {
+              "type": "string",
+              "const": "renew"
+            },
+            "lease_duration_ms": {
+              "description": "Requested positive extension, bounded by provider policy.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "kind",
+            "fence",
+            "lease_duration_ms"
+          ]
+        },
+        {
+          "description": "Release only the matching current owner; retain the epoch high watermark.",
+          "type": "object",
+          "properties": {
+            "fence": {
+              "description": "Ownership being released.",
+              "$ref": "#/$defs/ControlFence"
+            },
+            "kind": {
+              "type": "string",
+              "const": "release"
+            }
+          },
+          "required": [
+            "kind",
+            "fence"
+          ]
+        }
+      ]
+    },
+    "ControlEpoch": {
+      "description": "Monotonic fencing epoch; zero means ownership has never been assigned.",
+      "type": "string",
+      "not": {
+        "pattern": "[^0-9]"
+      },
+      "pattern": "^(0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]|1844674407370955161[0-4]|18446744073709551615)$"
+    },
+    "ControlFence": {
+      "description": "Fencing identity carried on every Control action and Control state write.\n\nNot a bearer credential. Authorities must authenticate the holder and validate\ncurrent ownership at execution/append time, including on open connections.",
+      "type": "object",
+      "properties": {
+        "epoch": {
+          "description": "Current ownership epoch, greater than zero.",
+          "$ref": "#/$defs/ControlEpoch"
+        },
+        "holder": {
+          "description": "Exact owner of this epoch.",
+          "$ref": "#/$defs/ControlHolder"
+        },
+        "workspace_id": {
+          "description": "Exact workspace being controlled.",
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "epoch",
+        "holder"
+      ]
+    },
+    "ControlHolder": {
+      "description": "Exact runtime authorized to act as the workspace's Control runtime.",
+      "type": "object",
+      "properties": {
+        "host_id": {
+          "description": "Host running Control.",
+          "$ref": "#/$defs/HostId"
+        },
+        "runtime_id": {
+          "description": "Control runtime identity.",
+          "$ref": "#/$defs/RuntimeId"
+        },
+        "session_id": {
+          "description": "Control session identity.",
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "runtime_id",
+        "host_id",
+        "session_id"
+      ]
+    },
+    "ControlLease": {
+      "description": "Authority-issued lease; renewal retains its epoch, reacquisition increases it.",
+      "type": "object",
+      "properties": {
+        "acquired_at": {
+          "description": "Authority-clock initial acquisition time.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "expires_at": {
+          "description": "Authority-clock exclusive validity boundary; expiry alone grants no successor.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "fence": {
+          "description": "Ownership identity used for fencing.",
+          "$ref": "#/$defs/ControlFence"
+        }
+      },
+      "required": [
+        "fence",
+        "acquired_at",
+        "expires_at"
+      ]
+    },
+    "ControlOwnership": {
+      "description": "Durable ownership state, retaining the high watermark even while unassigned.",
+      "type": "object",
+      "properties": {
+        "last_epoch": {
+          "description": "Never decreases or resets on release, restart or coordination adoption.",
+          "$ref": "#/$defs/ControlEpoch"
+        },
+        "lease": {
+          "description": "At most one current lease, whose epoch equals `last_epoch`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ControlLease"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workspace_id": {
+          "description": "Workspace scope of both the watermark and any lease.",
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "last_epoch"
+      ]
+    },
+    "ControlValidation": {
+      "description": "Authority-clock validation result; advisory until rechecked at the write/action boundary.",
+      "oneOf": [
+        {
+          "description": "Holder, workspace, epoch and expiry matched at validation time.",
+          "type": "object",
+          "properties": {
+            "checked_at": {
+              "description": "Authority time at which validation was performed.",
+              "$ref": "#/$defs/Timestamp"
+            },
+            "kind": {
+              "type": "string",
+              "const": "current"
+            },
+            "lease": {
+              "description": "Validated lease, including its exclusive expiry.",
+              "$ref": "#/$defs/ControlLease"
+            }
+          },
+          "required": [
+            "kind",
+            "lease",
+            "checked_at"
+          ]
+        },
+        {
+          "description": "Missing, expired or superseded ownership; no execution/write is authorized.",
+          "type": "object",
+          "properties": {
+            "checked_at": {
+              "description": "Authority time at which validation was performed.",
+              "$ref": "#/$defs/Timestamp"
+            },
+            "kind": {
+              "type": "string",
+              "const": "stale"
+            },
+            "ownership": {
+              "description": "Current ownership state for recovery.",
+              "$ref": "#/$defs/ControlOwnership"
+            }
+          },
+          "required": [
+            "kind",
+            "ownership",
+            "checked_at"
+          ]
+        }
+      ]
+    },
+    "CoordinationMode": {
+      "description": "Coordination mode and its repository attachments.",
+      "oneOf": [
+        {
+          "description": "OSS coordination for exactly one repository, without managed sign-in.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "standalone"
+            },
+            "repository": {
+              "description": "Repository supplying standalone context.",
+              "$ref": "#/$defs/Repository"
+            }
+          },
+          "required": [
+            "kind",
+            "repository"
+          ]
+        },
+        {
+          "description": "Managed metadata for zero or more attached repositories.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "managed"
+            },
+            "repositories": {
+              "description": "Repositories whose history is bound to this workspace's chain.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Repository"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "repositories"
+          ]
+        }
+      ]
+    },
+    "Delivery": {
+      "description": "Runtime-assigned delivery facts; a backend receipt has none of these fields.",
+      "type": "object",
+      "properties": {
+        "accepted_at": {
+          "description": "Time Evo durably accepted the input.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "order": {
+          "description": "Session-wide total input order, stable on replay and across restarts.",
+          "$ref": "#/$defs/InputOrder"
+        },
+        "ordered_at": {
+          "description": "Time Evo durably assigned the order.",
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "accepted_at",
+        "order",
+        "ordered_at"
+      ]
+    },
+    "ErrorCode": {
+      "description": "Machine-readable error reason. Unknown codes require protocol negotiation.",
+      "oneOf": [
+        {
+          "description": "Invalid payload, identity binding or domain invariant.",
+          "type": "string",
+          "const": "invalid_request"
+        },
+        {
+          "description": "Unsupported wire version.",
+          "type": "string",
+          "const": "unsupported_version"
+        },
+        {
+          "description": "Operation unavailable from this provider/runtime.",
+          "type": "string",
+          "const": "unsupported_operation"
+        },
+        {
+          "description": "Missing or invalid authenticated connection.",
+          "type": "string",
+          "const": "unauthenticated"
+        },
+        {
+          "description": "Current membership, grant or policy forbids this action.",
+          "type": "string",
+          "const": "forbidden"
+        },
+        {
+          "description": "Resource is absent or not visible in the requested workspace.",
+          "type": "string",
+          "const": "not_found"
+        },
+        {
+          "description": "Current entity state conflicts with the proposed action.",
+          "type": "string",
+          "const": "conflict"
+        },
+        {
+          "description": "Optimistic metadata precondition failed.",
+          "type": "string",
+          "const": "stale_revision"
+        },
+        {
+          "description": "Fencing owner/epoch/expiry no longer authorizes this action.",
+          "type": "string",
+          "const": "stale_control"
+        },
+        {
+          "description": "Same deduplication key was used for different semantic content.",
+          "type": "string",
+          "const": "idempotency_conflict"
+        },
+        {
+          "description": "First-receipt deadline elapsed or the old result is no longer retained.",
+          "type": "string",
+          "const": "request_expired"
+        },
+        {
+          "description": "Cursor belongs to a different workspace/audience or is ahead of the stream.",
+          "type": "string",
+          "const": "cursor_scope_mismatch"
+        },
+        {
+          "description": "Temporary provider or runtime unavailability.",
+          "type": "string",
+          "const": "unavailable"
+        },
+        {
+          "description": "Bounded capacity requires waiting before retry.",
+          "type": "string",
+          "const": "rate_limited"
+        }
+      ]
+    },
+    "Event": {
+      "description": "Versioned retained event; live delivery may duplicate, delay or reorder it.",
+      "type": "object",
+      "properties": {
+        "api_version": {
+          "description": "Required wire version.",
+          "$ref": "#/$defs/ApiVersion"
+        },
+        "body": {
+          "description": "Full entity state or explicit removal at this position.",
+          "$ref": "#/$defs/EventBody"
+        },
+        "causation": {
+          "description": "Originating mutation when known; absent for unsolicited health/state changes.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequestKey"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cursor": {
+          "description": "Scope and durable order assigned by coordination, not runtime input order.",
+          "$ref": "#/$defs/RecoveryCursor"
+        },
+        "event_id": {
+          "description": "Stable event identity retained on replay.",
+          "$ref": "#/$defs/EventId"
+        },
+        "produced_at": {
+          "description": "Original producer time, retained even for late delivery/import.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "recorded_at": {
+          "description": "Time the coordination authority durably recorded the event.",
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "api_version",
+        "event_id",
+        "cursor",
+        "produced_at",
+        "recorded_at",
+        "body"
+      ]
+    },
+    "EventBody": {
+      "description": "Retained event body. Metadata revisions and runtime revisions have different owners.",
+      "oneOf": [
+        {
+          "description": "Workspace metadata/bindings committed by the coordination authority.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Record"
+            },
+            "kind": {
+              "type": "string",
+              "const": "workspace_changed"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Contributor identity links or display metadata changed.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Record2"
+            },
+            "kind": {
+              "type": "string",
+              "const": "contributor_changed"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Membership added, changed or revoked; revocation overrides resource grants.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Record3"
+            },
+            "kind": {
+              "type": "string",
+              "const": "membership_changed"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Invitation lifecycle advanced.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Record4"
+            },
+            "kind": {
+              "type": "string",
+              "const": "invitation_changed"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Session directory binding changed; this does not confirm runtime execution.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Record5"
+            },
+            "kind": {
+              "type": "string",
+              "const": "session_changed"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Compute publication/health changed in this workspace.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Record6"
+            },
+            "kind": {
+              "type": "string",
+              "const": "host_changed"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Provider publication/health changed in this workspace.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Record7"
+            },
+            "kind": {
+              "type": "string",
+              "const": "provider_changed"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Model publication/health changed in this workspace.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Record8"
+            },
+            "kind": {
+              "type": "string",
+              "const": "model_changed"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Binding removed from this workspace, without deleting the resource globally.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "resource": {
+                  "description": "Removed binding identity.",
+                  "$ref": "#/$defs/ResourceRef"
+                },
+                "revision": {
+                  "description": "Tombstone revision preventing older publications from reappearing.",
+                  "$ref": "#/$defs/Revision"
+                }
+              },
+              "required": [
+                "resource",
+                "revision"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "const": "resource_detached"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Grant issued or revoked.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Record9"
+            },
+            "kind": {
+              "type": "string",
+              "const": "grant_changed"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Durable Control assignment/renewal/release changed.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ControlOwnership"
+            },
+            "kind": {
+              "type": "string",
+              "const": "control_changed"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Runtime-authenticated fact, preserved unchanged by coordination relays.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/RuntimeInputUpdate"
+            },
+            "kind": {
+              "type": "string",
+              "const": "input_updated"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        }
+      ]
+    },
+    "EventId": {
+      "description": "Stable event identity retained across duplicate delivery.",
+      "type": "string"
+    },
+    "EventPage": {
+      "description": "Ordered, bounded catch-up response; delivery is at least once, not exactly once.",
+      "type": "object",
+      "properties": {
+        "after": {
+          "description": "Original exclusive cursor, echoed for reconciliation.",
+          "$ref": "#/$defs/RecoveryCursor"
+        },
+        "events": {
+          "description": "Strictly increasing positions after `after`, all in its scope.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Event"
+          }
+        },
+        "has_more": {
+          "description": "Another page was available when this page was read.",
+          "type": "boolean"
+        },
+        "through": {
+          "description": "Scanned-through boundary, possibly beyond visible events after filtering.",
+          "$ref": "#/$defs/RecoveryCursor"
+        }
+      },
+      "required": [
+        "after",
+        "events",
+        "through",
+        "has_more"
+      ]
+    },
+    "EventPosition": {
+      "description": "Durable event position; zero is the empty-stream snapshot boundary.",
+      "type": "string",
+      "not": {
+        "pattern": "[^0-9]"
+      },
+      "pattern": "^(0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]|1844674407370955161[0-4]|18446744073709551615)$"
+    },
+    "ExternalIdentity": {
+      "description": "Identity in an external authentication namespace, with no credentials.",
+      "type": "object",
+      "properties": {
+        "issuer": {
+          "description": "Stable issuer namespace, such as a local peer-key authority or an SSO issuer.",
+          "type": "string"
+        },
+        "subject": {
+          "description": "Immutable subject at that issuer, not a mutable display name.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "issuer",
+        "subject"
+      ]
+    },
+    "Grant": {
+      "description": "Authorization metadata, never a bearer credential or an execution decision.",
+      "type": "object",
+      "properties": {
+        "expires_at": {
+          "description": "Optional authority-clock expiry.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "granted_by": {
+          "description": "Authenticated issuing contributor.",
+          "$ref": "#/$defs/ContributorId"
+        },
+        "grantee": {
+          "description": "Contributor receiving the permission.",
+          "$ref": "#/$defs/ContributorId"
+        },
+        "id": {
+          "description": "Stable, non-reusable grant identity.",
+          "$ref": "#/$defs/GrantId"
+        },
+        "scope": {
+          "description": "Resource and explicit permissions.",
+          "$ref": "#/$defs/GrantScope"
+        },
+        "status": {
+          "description": "Current revocation state.",
+          "$ref": "#/$defs/GrantStatus"
+        }
+      },
+      "required": [
+        "id",
+        "grantee",
+        "granted_by",
+        "scope",
+        "status"
+      ]
+    },
+    "GrantCommand": {
+      "description": "Sharing mutations, independent from workspace membership and runtime input.",
+      "oneOf": [
+        {
+          "description": "Issue a new explicit grant after verifying issuer authority.",
+          "type": "object",
+          "properties": {
+            "expires_at": {
+              "description": "Optional grant deadline.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Timestamp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "grant_id": {
+              "description": "New, never previously used grant identity.",
+              "$ref": "#/$defs/GrantId"
+            },
+            "grantee": {
+              "description": "Intended recipient.",
+              "$ref": "#/$defs/ContributorId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "issue"
+            },
+            "scope": {
+              "description": "Resource and permissions to share.",
+              "$ref": "#/$defs/GrantScope"
+            }
+          },
+          "required": [
+            "kind",
+            "grant_id",
+            "grantee",
+            "scope"
+          ]
+        },
+        {
+          "description": "Revoke a grant, including its use on already-open connections.",
+          "type": "object",
+          "properties": {
+            "expected_revision": {
+              "description": "Required current grant revision.",
+              "$ref": "#/$defs/Revision"
+            },
+            "grant_id": {
+              "description": "Grant to revoke.",
+              "$ref": "#/$defs/GrantId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "revoke"
+            }
+          },
+          "required": [
+            "kind",
+            "grant_id",
+            "expected_revision"
+          ]
+        }
+      ]
+    },
+    "GrantId": {
+      "description": "Workspace-scoped grant identity, never reused after revocation.",
+      "type": "string"
+    },
+    "GrantScope": {
+      "description": "A grant can address exactly one resource kind within the enclosing workspace.",
+      "oneOf": [
+        {
+          "description": "Session participation does not imply a compute or provider grant.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "session"
+            },
+            "permissions": {
+              "description": "Explicit permitted session actions.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SessionPermission"
+              }
+            },
+            "session_id": {
+              "description": "Session being shared.",
+              "$ref": "#/$defs/SessionId"
+            }
+          },
+          "required": [
+            "kind",
+            "session_id",
+            "permissions"
+          ]
+        },
+        {
+          "description": "Host access does not imply membership in a session.",
+          "type": "object",
+          "properties": {
+            "host_id": {
+              "description": "Host being shared.",
+              "$ref": "#/$defs/HostId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "compute"
+            },
+            "permissions": {
+              "description": "Explicit permitted host actions.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ComputePermission"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "host_id",
+            "permissions"
+          ]
+        },
+        {
+          "description": "Provider access does not imply permission to administer its host.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "provider"
+            },
+            "permissions": {
+              "description": "Explicit permitted provider actions.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ProviderPermission"
+              }
+            },
+            "provider_id": {
+              "description": "Provider being shared.",
+              "$ref": "#/$defs/ProviderId"
+            }
+          },
+          "required": [
+            "kind",
+            "provider_id",
+            "permissions"
+          ]
+        }
+      ]
+    },
+    "GrantStatus": {
+      "description": "Grant state; expiry is checked even if no expiry event has arrived.",
+      "oneOf": [
+        {
+          "description": "Issued, subject to expiry, current membership and current runtime policy.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "active"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Irrevocably withdrawn; issue a new grant identity to restore access.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "revoked"
+            },
+            "revoked_at": {
+              "description": "Authority-confirmed revocation time.",
+              "$ref": "#/$defs/Timestamp"
+            },
+            "revoked_by": {
+              "description": "Authenticated revoking contributor.",
+              "$ref": "#/$defs/ContributorId"
+            }
+          },
+          "required": [
+            "kind",
+            "revoked_at",
+            "revoked_by"
+          ]
+        }
+      ]
+    },
+    "Health": {
+      "description": "Resource health with an explicit freshness limit.",
+      "type": "object",
+      "properties": {
+        "availability": {
+          "description": "Last observed state.",
+          "$ref": "#/$defs/Availability"
+        },
+        "observed_at": {
+          "description": "Producer's observation time.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "valid_until": {
+          "description": "After this time clients display unknown/unavailable, not healthy.",
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "availability",
+        "observed_at",
+        "valid_until"
+      ]
+    },
+    "HostCapability": {
+      "description": "Advertised host capability; grants and runtime policy still gate use.",
+      "oneOf": [
+        {
+          "description": "Hosts agent sessions.",
+          "type": "string",
+          "const": "sessions"
+        },
+        {
+          "description": "Supports remote file operations.",
+          "type": "string",
+          "const": "files"
+        },
+        {
+          "description": "Supports remote process operations.",
+          "type": "string",
+          "const": "processes"
+        },
+        {
+          "description": "Can install and serve models.",
+          "type": "string",
+          "const": "local_models"
+        }
+      ]
+    },
+    "HostId": {
+      "description": "Compute host identity, reusable across workspace bindings.",
+      "type": "string"
+    },
+    "InputOrder": {
+      "description": "Runtime-assigned session input order, starting at one and never reset.",
+      "type": "string",
+      "not": {
+        "pattern": "[^0-9]"
+      },
+      "pattern": "^(0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]|1844674407370955161[0-4]|18446744073709551615)$"
+    },
+    "InputRef": {
+      "description": "Stable lookup for an input across retries, reconnects and runtime relocation.",
+      "type": "object",
+      "properties": {
+        "request": {
+          "description": "Original contributor/workspace/request identity.",
+          "$ref": "#/$defs/RequestKey"
+        },
+        "session_id": {
+          "description": "Directory session to which the input was submitted.",
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id",
+        "request"
+      ]
+    },
+    "InputRevision": {
+      "description": "Runtime-assigned per-input state revision, starting at one and never reset.",
+      "type": "string",
+      "not": {
+        "pattern": "[^0-9]"
+      },
+      "pattern": "^(0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]|1844674407370955161[0-4]|18446744073709551615)$"
+    },
+    "Invitation": {
+      "description": "Invitation metadata; accepting it does not create compute/session grants.",
+      "type": "object",
+      "properties": {
+        "expires_at": {
+          "description": "Authority-clock expiry.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "id": {
+          "description": "Stable invitation identity.",
+          "$ref": "#/$defs/InvitationId"
+        },
+        "invited_by": {
+          "description": "Actual authenticated inviter.",
+          "$ref": "#/$defs/ContributorId"
+        },
+        "invitee": {
+          "description": "Intended recipient.",
+          "$ref": "#/$defs/Invitee"
+        },
+        "role": {
+          "description": "Proposed metadata role.",
+          "$ref": "#/$defs/Role"
+        },
+        "status": {
+          "description": "Current state.",
+          "$ref": "#/$defs/InvitationStatus"
+        }
+      },
+      "required": [
+        "id",
+        "invited_by",
+        "invitee",
+        "role",
+        "expires_at",
+        "status"
+      ]
+    },
+    "InvitationId": {
+      "description": "Workspace invitation identity.",
+      "type": "string"
+    },
+    "InvitationStatus": {
+      "description": "Durable invitation state.",
+      "oneOf": [
+        {
+          "description": "Awaiting authenticated acceptance.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "pending"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Accepted by the authenticated matching recipient.",
+          "type": "object",
+          "properties": {
+            "contributor_id": {
+              "description": "Resolved contributor granted membership.",
+              "$ref": "#/$defs/ContributorId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "accepted"
+            }
+          },
+          "required": [
+            "kind",
+            "contributor_id"
+          ]
+        },
+        {
+          "description": "Withdrawn by an authorized member.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "revoked"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Deadline elapsed before acceptance.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "expired"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "Invitee": {
+      "description": "Invitation recipient, including someone not yet in the contributor directory.",
+      "oneOf": [
+        {
+          "description": "An existing contributor.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "contributor"
+            },
+            "value": {
+              "$ref": "#/$defs/ContributorId"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        {
+          "description": "A verified immutable external subject; no email or login-name matching.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "external"
+            },
+            "value": {
+              "$ref": "#/$defs/ExternalIdentity"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ]
+        }
+      ]
+    },
+    "Membership": {
+      "description": "Membership in the enclosing workspace only.",
+      "type": "object",
+      "properties": {
+        "contributor_id": {
+          "description": "Member identity, not a host or session identity.",
+          "$ref": "#/$defs/ContributorId"
+        },
+        "role": {
+          "description": "Workspace metadata role.",
+          "$ref": "#/$defs/Role"
+        },
+        "status": {
+          "description": "Current membership state.",
+          "$ref": "#/$defs/MembershipStatus"
+        }
+      },
+      "required": [
+        "contributor_id",
+        "role",
+        "status"
+      ]
+    },
+    "MembershipCommand": {
+      "description": "Authorized membership mutations, correlated by the enclosing request.",
+      "oneOf": [
+        {
+          "description": "Create an invitation; inviter comes from the authenticated request.",
+          "type": "object",
+          "properties": {
+            "expires_at": {
+              "description": "Deadline for acceptance.",
+              "$ref": "#/$defs/Timestamp"
+            },
+            "invitation_id": {
+              "description": "New invitation identity.",
+              "$ref": "#/$defs/InvitationId"
+            },
+            "invitee": {
+              "description": "Intended recipient.",
+              "$ref": "#/$defs/Invitee"
+            },
+            "kind": {
+              "type": "string",
+              "const": "invite"
+            },
+            "role": {
+              "description": "Proposed role.",
+              "$ref": "#/$defs/Role"
+            }
+          },
+          "required": [
+            "kind",
+            "invitation_id",
+            "invitee",
+            "role",
+            "expires_at"
+          ]
+        },
+        {
+          "description": "Accept as the authenticated matching recipient.",
+          "type": "object",
+          "properties": {
+            "expected_revision": {
+              "description": "Required invitation revision.",
+              "$ref": "#/$defs/Revision"
+            },
+            "invitation_id": {
+              "description": "Invitation to accept.",
+              "$ref": "#/$defs/InvitationId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "accept_invitation"
+            }
+          },
+          "required": [
+            "kind",
+            "invitation_id",
+            "expected_revision"
+          ]
+        },
+        {
+          "description": "Withdraw a pending invitation.",
+          "type": "object",
+          "properties": {
+            "expected_revision": {
+              "description": "Required invitation revision.",
+              "$ref": "#/$defs/Revision"
+            },
+            "invitation_id": {
+              "description": "Invitation to revoke.",
+              "$ref": "#/$defs/InvitationId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "revoke_invitation"
+            }
+          },
+          "required": [
+            "kind",
+            "invitation_id",
+            "expected_revision"
+          ]
+        },
+        {
+          "description": "Change a current member's metadata role.",
+          "type": "object",
+          "properties": {
+            "contributor_id": {
+              "description": "Member to change.",
+              "$ref": "#/$defs/ContributorId"
+            },
+            "expected_revision": {
+              "description": "Required membership revision.",
+              "$ref": "#/$defs/Revision"
+            },
+            "kind": {
+              "type": "string",
+              "const": "change_role"
+            },
+            "role": {
+              "description": "New role.",
+              "$ref": "#/$defs/Role"
+            }
+          },
+          "required": [
+            "kind",
+            "contributor_id",
+            "role",
+            "expected_revision"
+          ]
+        },
+        {
+          "description": "Revoke membership and invalidate workspace access on active connections.",
+          "type": "object",
+          "properties": {
+            "contributor_id": {
+              "description": "Member to revoke.",
+              "$ref": "#/$defs/ContributorId"
+            },
+            "expected_revision": {
+              "description": "Required membership revision.",
+              "$ref": "#/$defs/Revision"
+            },
+            "kind": {
+              "type": "string",
+              "const": "revoke_member"
+            }
+          },
+          "required": [
+            "kind",
+            "contributor_id",
+            "expected_revision"
+          ]
+        }
+      ]
+    },
+    "MembershipStatus": {
+      "description": "Membership status; revocation overrides all grants in this workspace.",
+      "oneOf": [
+        {
+          "description": "Current member, subject to resource-specific grants.",
+          "type": "string",
+          "const": "active"
+        },
+        {
+          "description": "Removed member, including on already-open connections.",
+          "type": "string",
+          "const": "revoked"
+        }
+      ]
+    },
+    "Model": {
+      "description": "Model publication; installation and inference remain runtime operations.",
+      "type": "object",
+      "properties": {
+        "capabilities": {
+          "description": "Advertised modalities and actions.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ModelCapability"
+          }
+        },
+        "health": {
+          "description": "Observed serving health.",
+          "$ref": "#/$defs/Health"
+        },
+        "id": {
+          "description": "Model identity within `provider_id`.",
+          "$ref": "#/$defs/ModelId"
+        },
+        "name": {
+          "description": "Display label.",
+          "type": "string"
+        },
+        "provider_id": {
+          "description": "Provider exposing this model in the enclosing workspace.",
+          "$ref": "#/$defs/ProviderId"
+        }
+      },
+      "required": [
+        "id",
+        "provider_id",
+        "name",
+        "capabilities",
+        "health"
+      ]
+    },
+    "ModelCapability": {
+      "description": "Published model capability, not a provider SDK type.",
+      "oneOf": [
+        {
+          "description": "Text generation.",
+          "type": "string",
+          "const": "text"
+        },
+        {
+          "description": "Tool calling.",
+          "type": "string",
+          "const": "tools"
+        },
+        {
+          "description": "Image input.",
+          "type": "string",
+          "const": "images"
+        }
+      ]
+    },
+    "ModelId": {
+      "description": "Published model identity within its provider.",
+      "type": "string"
+    },
+    "ModelProvider": {
+      "description": "Provider metadata visible through one workspace binding.",
+      "type": "object",
+      "properties": {
+        "health": {
+          "description": "Observed availability.",
+          "$ref": "#/$defs/Health"
+        },
+        "id": {
+          "description": "Reusable provider identity.",
+          "$ref": "#/$defs/ProviderId"
+        },
+        "kind": {
+          "description": "External or local serving source.",
+          "$ref": "#/$defs/ProviderKind"
+        },
+        "name": {
+          "description": "Display label.",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Actual provider owner.",
+          "$ref": "#/$defs/ContributorId"
+        },
+        "routes": {
+          "description": "Credential-free routing references.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConnectionRoute"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "owner",
+        "name",
+        "kind",
+        "health",
+        "routes"
+      ]
+    },
+    "ProviderId": {
+      "description": "Model provider identity, reusable across workspace bindings.",
+      "type": "string"
+    },
+    "ProviderKind": {
+      "description": "External API or Evo-served local model source.",
+      "oneOf": [
+        {
+          "description": "External provider; credential handling belongs to its host adapter.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "external"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Local serving has no dependency on managed or external-provider sign-in.",
+          "type": "object",
+          "properties": {
+            "host_id": {
+              "description": "Serving compute host.",
+              "$ref": "#/$defs/HostId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "local"
+            },
+            "runtime_id": {
+              "description": "Runtime publishing and serving the models.",
+              "$ref": "#/$defs/RuntimeId"
+            }
+          },
+          "required": [
+            "kind",
+            "host_id",
+            "runtime_id"
+          ]
+        }
+      ]
+    },
+    "ProviderPermission": {
+      "description": "Model-provider access, independent of provider credentials and SSO.",
+      "oneOf": [
+        {
+          "description": "Use authorized models exposed by this provider.",
+          "type": "string",
+          "const": "use_models"
+        },
+        {
+          "description": "Manage provider publication/configuration metadata.",
+          "type": "string",
+          "const": "manage"
+        }
+      ]
+    },
+    "Query": {
+      "description": "Read/recovery operations; all nested scopes must match the request context.",
+      "oneOf": [
+        {
+          "description": "Obtain a consistent authorized metadata snapshot and recovery boundary.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "snapshot"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Recover durable events strictly after the supplied cursor.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "after": {
+                  "description": "Workspace/audience/generation-bound exclusive recovery cursor.",
+                  "$ref": "#/$defs/RecoveryCursor"
+                },
+                "limit": {
+                  "description": "Requested positive page size, bounded by provider policy.",
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "after",
+                "limit"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "const": "catch_up"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Resolve an earlier mutation without allocating a new retry key.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/RequestKey"
+            },
+            "kind": {
+              "type": "string",
+              "const": "request_status"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Get the latest runtime-confirmed input fact; unavailable hosts stay explicit.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/InputRef"
+            },
+            "kind": {
+              "type": "string",
+              "const": "input_status"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Read current Control ownership and its durable epoch high watermark.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "control_ownership"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Validate a holder using the authority's clock; writes must recheck atomically.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ControlFence"
+            },
+            "kind": {
+              "type": "string",
+              "const": "validate_control"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        }
+      ]
+    },
+    "QueryResult": {
+      "description": "Typed query results; command receipts and runtime facts remain distinct.",
+      "oneOf": [
+        {
+          "description": "Atomic directory state and the subsequent catch-up boundary.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/RecoverySnapshot"
+            },
+            "kind": {
+              "type": "string",
+              "const": "snapshot"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Ordered retained events or explicit snapshot requirement.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Recovery"
+            },
+            "kind": {
+              "type": "string",
+              "const": "catch_up"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Recovered coordination acknowledgement for the original mutation.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/RequestStatus"
+            },
+            "kind": {
+              "type": "string",
+              "const": "request_status"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Latest authoritative runtime fact, which may also arrive through events.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/RuntimeInputUpdate"
+            },
+            "kind": {
+              "type": "string",
+              "const": "input_status"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Current Control ownership.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ControlOwnership"
+            },
+            "kind": {
+              "type": "string",
+              "const": "control_ownership"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Authority-clock validation result.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ControlValidation"
+            },
+            "kind": {
+              "type": "string",
+              "const": "control_validation"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        }
+      ]
+    },
+    "Record": {
+      "description": "A metadata value and its authority-assigned revision.\n\nRevisions increase for a given entity, including deletion/recreation. They\nare neither runtime input revisions nor event positions.",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Revision used for optimistic concurrency.",
+          "$ref": "#/$defs/Revision"
+        },
+        "value": {
+          "description": "Current entity data in the enclosing workspace scope.",
+          "$ref": "#/$defs/Workspace"
+        }
+      },
+      "required": [
+        "revision",
+        "value"
+      ]
+    },
+    "Record2": {
+      "description": "A metadata value and its authority-assigned revision.\n\nRevisions increase for a given entity, including deletion/recreation. They\nare neither runtime input revisions nor event positions.",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Revision used for optimistic concurrency.",
+          "$ref": "#/$defs/Revision"
+        },
+        "value": {
+          "description": "Current entity data in the enclosing workspace scope.",
+          "$ref": "#/$defs/Contributor"
+        }
+      },
+      "required": [
+        "revision",
+        "value"
+      ]
+    },
+    "Record3": {
+      "description": "A metadata value and its authority-assigned revision.\n\nRevisions increase for a given entity, including deletion/recreation. They\nare neither runtime input revisions nor event positions.",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Revision used for optimistic concurrency.",
+          "$ref": "#/$defs/Revision"
+        },
+        "value": {
+          "description": "Current entity data in the enclosing workspace scope.",
+          "$ref": "#/$defs/Membership"
+        }
+      },
+      "required": [
+        "revision",
+        "value"
+      ]
+    },
+    "Record4": {
+      "description": "A metadata value and its authority-assigned revision.\n\nRevisions increase for a given entity, including deletion/recreation. They\nare neither runtime input revisions nor event positions.",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Revision used for optimistic concurrency.",
+          "$ref": "#/$defs/Revision"
+        },
+        "value": {
+          "description": "Current entity data in the enclosing workspace scope.",
+          "$ref": "#/$defs/Invitation"
+        }
+      },
+      "required": [
+        "revision",
+        "value"
+      ]
+    },
+    "Record5": {
+      "description": "A metadata value and its authority-assigned revision.\n\nRevisions increase for a given entity, including deletion/recreation. They\nare neither runtime input revisions nor event positions.",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Revision used for optimistic concurrency.",
+          "$ref": "#/$defs/Revision"
+        },
+        "value": {
+          "description": "Current entity data in the enclosing workspace scope.",
+          "$ref": "#/$defs/Session"
+        }
+      },
+      "required": [
+        "revision",
+        "value"
+      ]
+    },
+    "Record6": {
+      "description": "A metadata value and its authority-assigned revision.\n\nRevisions increase for a given entity, including deletion/recreation. They\nare neither runtime input revisions nor event positions.",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Revision used for optimistic concurrency.",
+          "$ref": "#/$defs/Revision"
+        },
+        "value": {
+          "description": "Current entity data in the enclosing workspace scope.",
+          "$ref": "#/$defs/ComputeHost"
+        }
+      },
+      "required": [
+        "revision",
+        "value"
+      ]
+    },
+    "Record7": {
+      "description": "A metadata value and its authority-assigned revision.\n\nRevisions increase for a given entity, including deletion/recreation. They\nare neither runtime input revisions nor event positions.",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Revision used for optimistic concurrency.",
+          "$ref": "#/$defs/Revision"
+        },
+        "value": {
+          "description": "Current entity data in the enclosing workspace scope.",
+          "$ref": "#/$defs/ModelProvider"
+        }
+      },
+      "required": [
+        "revision",
+        "value"
+      ]
+    },
+    "Record8": {
+      "description": "A metadata value and its authority-assigned revision.\n\nRevisions increase for a given entity, including deletion/recreation. They\nare neither runtime input revisions nor event positions.",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Revision used for optimistic concurrency.",
+          "$ref": "#/$defs/Revision"
+        },
+        "value": {
+          "description": "Current entity data in the enclosing workspace scope.",
+          "$ref": "#/$defs/Model"
+        }
+      },
+      "required": [
+        "revision",
+        "value"
+      ]
+    },
+    "Record9": {
+      "description": "A metadata value and its authority-assigned revision.\n\nRevisions increase for a given entity, including deletion/recreation. They\nare neither runtime input revisions nor event positions.",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Revision used for optimistic concurrency.",
+          "$ref": "#/$defs/Revision"
+        },
+        "value": {
+          "description": "Current entity data in the enclosing workspace scope.",
+          "$ref": "#/$defs/Grant"
+        }
+      },
+      "required": [
+        "revision",
+        "value"
+      ]
+    },
+    "Recovery": {
+      "description": "Catch-up outcome; unavailable history is never represented as an empty success.",
+      "oneOf": [
+        {
+          "description": "Retained ordered events, possibly an empty current page.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/EventPage"
+            },
+            "kind": {
+              "type": "string",
+              "const": "events"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Fetch a fresh snapshot before replacing the old view/cursor.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/ResetReason"
+            },
+            "kind": {
+              "type": "string",
+              "const": "snapshot_required"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        }
+      ]
+    },
+    "RecoveryCursor": {
+      "description": "Recovery position in a workspace, audience and stream generation.\n\nPositions are ordered only inside the same scope. A provider change, retention\nreset or visibility change may require a new stream generation and snapshot.\nTimestamps are not cursors. Event positions may contain gaps after filtering.",
+      "type": "object",
+      "properties": {
+        "contributor_id": {
+          "description": "Authenticated audience; a cursor is not transferable to another contributor.",
+          "$ref": "#/$defs/ContributorId"
+        },
+        "position": {
+          "description": "Exclusive resume position: ask for events strictly after this position.",
+          "$ref": "#/$defs/EventPosition"
+        },
+        "stream_id": {
+          "description": "Authority-issued generation of this audience's visibility scope.",
+          "$ref": "#/$defs/StreamId"
+        },
+        "workspace_id": {
+          "description": "Workspace whose retained events are addressed.",
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "contributor_id",
+        "stream_id",
+        "position"
+      ]
+    },
+    "RecoverySnapshot": {
+      "description": "Atomic authorized directory view at an exclusive catch-up boundary.\n\nEvery listed metadata value reflects `as_of`. Runtime states are the last\nconfirmed facts recorded by that boundary, not proof a detached host stopped.\nA snapshot replaces the prior scoped view; absent entities are removed.",
+      "type": "object",
+      "properties": {
+        "as_of": {
+          "description": "Resume retained delivery strictly after this consistent boundary.",
+          "$ref": "#/$defs/RecoveryCursor"
+        },
+        "contributors": {
+          "description": "Authorized contributor directory.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Record2"
+          }
+        },
+        "control": {
+          "description": "Durable Control ownership and epoch high watermark.",
+          "$ref": "#/$defs/ControlOwnership"
+        },
+        "grants": {
+          "description": "Current grant records, including revocations.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Record9"
+          }
+        },
+        "hosts": {
+          "description": "Workspace host bindings.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Record6"
+          }
+        },
+        "inputs": {
+          "description": "Last retained runtime-confirmed input states visible to this audience.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RuntimeInputUpdate"
+          }
+        },
+        "invitations": {
+          "description": "Visible invitations.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Record4"
+          }
+        },
+        "memberships": {
+          "description": "Visible current and revoked memberships.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Record3"
+          }
+        },
+        "models": {
+          "description": "Published models available for authorized discovery.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Record8"
+          }
+        },
+        "providers": {
+          "description": "Workspace provider bindings.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Record7"
+          }
+        },
+        "sessions": {
+          "description": "Reconnectable session directory.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Record5"
+          }
+        },
+        "workspace": {
+          "description": "Exactly one logical workspace/chain binding.",
+          "$ref": "#/$defs/Record"
+        }
+      },
+      "required": [
+        "as_of",
+        "workspace",
+        "contributors",
+        "memberships",
+        "invitations",
+        "sessions",
+        "hosts",
+        "providers",
+        "models",
+        "grants",
+        "control",
+        "inputs"
+      ]
+    },
+    "Repository": {
+      "description": "Repository metadata; a repository may be attached to multiple workspaces.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Stable repository identity, independent of checkout paths.",
+          "$ref": "#/$defs/RepositoryId"
+        },
+        "name": {
+          "description": "Display label.",
+          "type": "string"
+        },
+        "remote": {
+          "description": "Credential-free canonical Git locator, if published.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "RepositoryId": {
+      "description": "Repository identity, reusable across workspace attachments.",
+      "type": "string"
+    },
+    "Request": {
+      "description": "Request envelope shared by standalone adapters, managed adapters and Evo.\n\nMutations with the same key and semantic content replay the original durable\nresult. Changed content under that key is an idempotency conflict. Queries use\nthe key for correlation but may observe newer state when repeated.",
+      "type": "object",
+      "properties": {
+        "api_version": {
+          "description": "Required supported wire version.",
+          "$ref": "#/$defs/ApiVersion"
+        },
+        "body": {
+          "description": "Typed operation payload.",
+          "$ref": "#/$defs/Command"
+        },
+        "context": {
+          "description": "Authenticated attribution, retry identity and first-receipt deadline.",
+          "$ref": "#/$defs/RequestContext"
+        },
+        "control_fence": {
+          "description": "Required for side effects originating from Control, including state writes.\nThis is validated against current ownership, not merely deserialized.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ControlFence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "api_version",
+        "context",
+        "body"
+      ]
+    },
+    "Request2": {
+      "description": "Request envelope shared by standalone adapters, managed adapters and Evo.\n\nMutations with the same key and semantic content replay the original durable\nresult. Changed content under that key is an idempotency conflict. Queries use\nthe key for correlation but may observe newer state when repeated.",
+      "type": "object",
+      "properties": {
+        "api_version": {
+          "description": "Required supported wire version.",
+          "$ref": "#/$defs/ApiVersion"
+        },
+        "body": {
+          "description": "Typed operation payload.",
+          "$ref": "#/$defs/Query"
+        },
+        "context": {
+          "description": "Authenticated attribution, retry identity and first-receipt deadline.",
+          "$ref": "#/$defs/RequestContext"
+        },
+        "control_fence": {
+          "description": "Required for side effects originating from Control, including state writes.\nThis is validated against current ownership, not merely deserialized.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ControlFence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "api_version",
+        "context",
+        "body"
+      ]
+    },
+    "RequestContext": {
+      "description": "Request correlation and attribution, unchanged across retries and forwarding.",
+      "type": "object",
+      "properties": {
+        "contributor": {
+          "description": "Authenticated contributor, independent of resource ownership.",
+          "$ref": "#/$defs/ContributorIdentity"
+        },
+        "expires_at": {
+          "description": "Deadline for first coordination receipt, using the authority's clock.\nReceipt before this deadline permits later runtime delivery and execution.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "request_id": {
+          "description": "Caller-generated identity created before the first submission.",
+          "$ref": "#/$defs/RequestId"
+        },
+        "workspace_id": {
+          "description": "Workspace to which all payload references are bound.",
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "request_id",
+        "contributor",
+        "expires_at"
+      ]
+    },
+    "RequestId": {
+      "description": "Caller-generated retry identity; reuse only for the same logical request.",
+      "type": "string"
+    },
+    "RequestKey": {
+      "description": "Complete deduplication key, shared by coordination and runtime adapters.\n\nA key covers all mutation kinds, not just one endpoint. Changing the payload,\ndeadline or authenticated subject under an existing key is a conflict.",
+      "type": "object",
+      "properties": {
+        "contributor_id": {
+          "description": "Actual authenticated contributor.",
+          "$ref": "#/$defs/ContributorId"
+        },
+        "request_id": {
+          "description": "Stable identity of the logical mutation, retained on every retry.",
+          "$ref": "#/$defs/RequestId"
+        },
+        "workspace_id": {
+          "description": "Isolated workspace scope.",
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "contributor_id",
+        "request_id"
+      ]
+    },
+    "RequestStatus": {
+      "description": "Recoverable mutation result, without implying absence means safe re-execution.",
+      "oneOf": [
+        {
+          "description": "Retained original coordination result.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/CommandResult"
+            },
+            "kind": {
+              "type": "string",
+              "const": "recorded"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "No retained result is available. This is not proof that execution never ran.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "unknown"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "ResetReason": {
+      "description": "Why the old cursor can no longer safely recover the current view.",
+      "oneOf": [
+        {
+          "description": "Retained events before the cursor are no longer available.",
+          "type": "string",
+          "const": "retention_expired"
+        },
+        {
+          "description": "Provider/stream generation changed, including managed adoption.",
+          "type": "string",
+          "const": "stream_changed"
+        },
+        {
+          "description": "Current grants require a new authorized view and subscription scope.",
+          "type": "string",
+          "const": "visibility_changed"
+        }
+      ]
+    },
+    "ResourceCommand": {
+      "description": "Register/update publications or remove a workspace binding only.",
+      "oneOf": [
+        {
+          "description": "Register or update a compute host publication.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Change3"
+            },
+            "kind": {
+              "type": "string",
+              "const": "put_host"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Register or update a provider publication.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Change4"
+            },
+            "kind": {
+              "type": "string",
+              "const": "put_provider"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Publish model capabilities/health from an authenticated runtime/provider.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/Change5"
+            },
+            "kind": {
+              "type": "string",
+              "const": "put_model"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        },
+        {
+          "description": "Detach from this workspace without deleting the shared resource elsewhere.",
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "properties": {
+                "expected_revision": {
+                  "description": "Required current binding revision.",
+                  "$ref": "#/$defs/Revision"
+                },
+                "resource": {
+                  "description": "Binding to detach.",
+                  "$ref": "#/$defs/ResourceRef"
+                }
+              },
+              "required": [
+                "resource",
+                "expected_revision"
+              ]
+            },
+            "kind": {
+              "type": "string",
+              "const": "detach"
+            }
+          },
+          "required": [
+            "kind",
+            "data"
+          ]
+        }
+      ]
+    },
+    "ResourceRef": {
+      "description": "Exact resource binding being addressed; never an implicit global lookup.",
+      "oneOf": [
+        {
+          "description": "Compute host binding.",
+          "type": "object",
+          "properties": {
+            "host_id": {
+              "description": "Host identity.",
+              "$ref": "#/$defs/HostId"
+            },
+            "kind": {
+              "type": "string",
+              "const": "host"
+            }
+          },
+          "required": [
+            "kind",
+            "host_id"
+          ]
+        },
+        {
+          "description": "Provider binding.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "provider"
+            },
+            "provider_id": {
+              "description": "Provider identity.",
+              "$ref": "#/$defs/ProviderId"
+            }
+          },
+          "required": [
+            "kind",
+            "provider_id"
+          ]
+        },
+        {
+          "description": "Model publication binding.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "model"
+            },
+            "model_id": {
+              "description": "Model identity within the provider.",
+              "$ref": "#/$defs/ModelId"
+            },
+            "provider_id": {
+              "description": "Publishing provider.",
+              "$ref": "#/$defs/ProviderId"
+            }
+          },
+          "required": [
+            "kind",
+            "provider_id",
+            "model_id"
+          ]
+        }
+      ]
+    },
+    "Response": {
+      "description": "Response envelope; correlation never implies that execution succeeded.",
+      "type": "object",
+      "properties": {
+        "api_version": {
+          "description": "Required supported wire version.",
+          "$ref": "#/$defs/ApiVersion"
+        },
+        "request": {
+          "description": "Original workspace/contributor/request key.",
+          "$ref": "#/$defs/RequestKey"
+        },
+        "result": {
+          "description": "Explicit success payload or protocol failure.",
+          "$ref": "#/$defs/ApiResult"
+        }
+      },
+      "required": [
+        "api_version",
+        "request",
+        "result"
+      ]
+    },
+    "Response2": {
+      "description": "Response envelope; correlation never implies that execution succeeded.",
+      "type": "object",
+      "properties": {
+        "api_version": {
+          "description": "Required supported wire version.",
+          "$ref": "#/$defs/ApiVersion"
+        },
+        "request": {
+          "description": "Original workspace/contributor/request key.",
+          "$ref": "#/$defs/RequestKey"
+        },
+        "result": {
+          "description": "Explicit success payload or protocol failure.",
+          "$ref": "#/$defs/ApiResult2"
+        }
+      },
+      "required": [
+        "api_version",
+        "request",
+        "result"
+      ]
+    },
+    "Response3": {
+      "description": "Response envelope; correlation never implies that execution succeeded.",
+      "type": "object",
+      "properties": {
+        "api_version": {
+          "description": "Required supported wire version.",
+          "$ref": "#/$defs/ApiVersion"
+        },
+        "request": {
+          "description": "Original workspace/contributor/request key.",
+          "$ref": "#/$defs/RequestKey"
+        },
+        "result": {
+          "description": "Explicit success payload or protocol failure.",
+          "$ref": "#/$defs/ApiResult3"
+        }
+      },
+      "required": [
+        "api_version",
+        "request",
+        "result"
+      ]
+    },
+    "RetryAdvice": {
+      "description": "How to recover from failure without creating a second logical mutation.",
+      "oneOf": [
+        {
+          "description": "This request must not be resubmitted automatically.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "never"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Retry unchanged, retaining the original key and deadline.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "same_request"
+            },
+            "not_before": {
+              "description": "Earliest authority-clock retry time, if supplied.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Timestamp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Outcome is uncertain; reconcile by the original key before taking action.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "query_status"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "Revision": {
+      "description": "Metadata revision assigned by the coordination authority.",
+      "type": "string",
+      "not": {
+        "pattern": "[^0-9]"
+      },
+      "pattern": "^(0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]|1844674407370955161[0-4]|18446744073709551615)$"
+    },
+    "Role": {
+      "description": "Workspace metadata role; no role implicitly grants compute or model use.",
+      "oneOf": [
+        {
+          "description": "Workspace owner, subject to the provider's ownership policy.",
+          "type": "string",
+          "const": "owner"
+        },
+        {
+          "description": "Membership and configuration administrator.",
+          "type": "string",
+          "const": "admin"
+        },
+        {
+          "description": "Workspace participant.",
+          "type": "string",
+          "const": "member"
+        },
+        {
+          "description": "Read-only workspace observer.",
+          "type": "string",
+          "const": "viewer"
+        }
+      ]
+    },
+    "RuntimeBinding": {
+      "description": "Current routing binding; moving the runtime does not create a new session.",
+      "type": "object",
+      "properties": {
+        "host_id": {
+          "description": "Host executing the session.",
+          "$ref": "#/$defs/HostId"
+        },
+        "runtime_id": {
+          "description": "Runtime authorized to report this session's input state.",
+          "$ref": "#/$defs/RuntimeId"
+        }
+      },
+      "required": [
+        "host_id",
+        "runtime_id"
+      ]
+    },
+    "RuntimeId": {
+      "description": "Runtime instance identity authenticated by its host adapter.",
+      "type": "string"
+    },
+    "RuntimeInputState": {
+      "description": "Runtime-authored input lifecycle, never inferred from transport delivery.\n\nAccepted input may later be ordered, run and complete. Rejection happens before\nacceptance. Observers may miss intermediate states and use `InputRevision` to\ndiscard delayed updates; terminal states cannot revert. Order is not a promise\nof execution success or of completion order.",
+      "oneOf": [
+        {
+          "description": "Evo declined the input; no delivery order has been assigned.",
+          "type": "object",
+          "properties": {
+            "error": {
+              "description": "Explicit rejection reason, including revoked access or stale fencing.",
+              "$ref": "#/$defs/ApiError"
+            },
+            "kind": {
+              "type": "string",
+              "const": "rejected"
+            },
+            "rejected_at": {
+              "description": "Runtime rejection time.",
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "kind",
+            "rejected_at",
+            "error"
+          ]
+        },
+        {
+          "description": "Evo durably accepted the attributed input but has not reported order.",
+          "type": "object",
+          "properties": {
+            "accepted_at": {
+              "description": "Runtime acceptance time.",
+              "$ref": "#/$defs/Timestamp"
+            },
+            "kind": {
+              "type": "string",
+              "const": "accepted"
+            }
+          },
+          "required": [
+            "kind",
+            "accepted_at"
+          ]
+        },
+        {
+          "description": "Evo durably assigned a unique position among this session's inputs.",
+          "type": "object",
+          "properties": {
+            "delivery": {
+              "description": "Runtime-authored acceptance/order facts.",
+              "$ref": "#/$defs/Delivery"
+            },
+            "kind": {
+              "type": "string",
+              "const": "ordered"
+            }
+          },
+          "required": [
+            "kind",
+            "delivery"
+          ]
+        },
+        {
+          "description": "Evo confirmed processing has started.",
+          "type": "object",
+          "properties": {
+            "delivery": {
+              "description": "Original, unchanged delivery facts.",
+              "$ref": "#/$defs/Delivery"
+            },
+            "kind": {
+              "type": "string",
+              "const": "running"
+            },
+            "started_at": {
+              "description": "Runtime start time.",
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "kind",
+            "delivery",
+            "started_at"
+          ]
+        },
+        {
+          "description": "Evo confirmed a terminal outcome, including failure or cancellation.",
+          "type": "object",
+          "properties": {
+            "completed_at": {
+              "description": "Runtime completion time.",
+              "$ref": "#/$defs/Timestamp"
+            },
+            "delivery": {
+              "description": "Original, unchanged delivery facts.",
+              "$ref": "#/$defs/Delivery"
+            },
+            "kind": {
+              "type": "string",
+              "const": "completed"
+            },
+            "outcome": {
+              "description": "Explicit terminal result.",
+              "$ref": "#/$defs/Completion"
+            }
+          },
+          "required": [
+            "kind",
+            "delivery",
+            "completed_at",
+            "outcome"
+          ]
+        }
+      ]
+    },
+    "RuntimeInputUpdate": {
+      "description": "Recoverable runtime fact. Relays preserve attribution, revision and order.",
+      "type": "object",
+      "properties": {
+        "contributor": {
+          "description": "Verified original contributor, matching `input.request.contributor_id`.",
+          "$ref": "#/$defs/ContributorIdentity"
+        },
+        "input": {
+          "description": "Original input identity.",
+          "$ref": "#/$defs/InputRef"
+        },
+        "revision": {
+          "description": "Monotonic revision for this input, independent of event cursor positions.",
+          "$ref": "#/$defs/InputRevision"
+        },
+        "runtime_id": {
+          "description": "Authenticated runtime producing this fact, matching the session binding.",
+          "$ref": "#/$defs/RuntimeId"
+        },
+        "state": {
+          "description": "Full confirmed input state at this revision.",
+          "$ref": "#/$defs/RuntimeInputState"
+        }
+      },
+      "required": [
+        "input",
+        "contributor",
+        "runtime_id",
+        "revision",
+        "state"
+      ]
+    },
+    "RuntimeReport": {
+      "description": "Direct runtime report; relays may retain it as an `InputUpdated` event.",
+      "type": "object",
+      "properties": {
+        "api_version": {
+          "description": "Required wire version.",
+          "$ref": "#/$defs/ApiVersion"
+        },
+        "produced_at": {
+          "description": "Original producer time, preserved by relays.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "update": {
+          "description": "Authenticated runtime fact; the transport authenticates its runtime ID.",
+          "$ref": "#/$defs/RuntimeInputUpdate"
+        },
+        "workspace_id": {
+          "description": "Exact workspace scope, matching the input request and session binding.",
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "api_version",
+        "workspace_id",
+        "produced_at",
+        "update"
+      ]
+    },
+    "RuntimeSubmission": {
+      "description": "Direct or forwarded runtime submission, retaining the original request context.\n\nForwarders extract the unchanged `SubmitInput` body from the coordination\ncommand. Evo deduplicates its semantic input, context and fence using the same\nrequest key. Recipients must authenticate the delegation channel before\ntrusting a forwarded receipt, and its key must match `context.key()`.",
+      "type": "object",
+      "properties": {
+        "api_version": {
+          "description": "Required wire version.",
+          "$ref": "#/$defs/ApiVersion"
+        },
+        "body": {
+          "description": "Exact input originally submitted by this contributor.",
+          "$ref": "#/$defs/SubmitInput"
+        },
+        "context": {
+          "description": "Original contributor, retry key and first-receipt deadline, unchanged.",
+          "$ref": "#/$defs/RequestContext"
+        },
+        "control_fence": {
+          "description": "Original Control fencing, when applicable; revalidated by Evo.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ControlFence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coordination_receipt": {
+          "description": "Durable coordination receipt for forwarded input. Direct input uses `None`\nand applies the first-receipt deadline at Evo itself. Never a bearer token.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BackendReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "api_version",
+        "context",
+        "body"
+      ]
+    },
+    "Session": {
+      "description": "Directory metadata; registration is not runtime creation or execution success.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Reconnectable identity, preserved across coordination adoption.",
+          "$ref": "#/$defs/SessionId"
+        },
+        "kind": {
+          "description": "Runner or Control purpose.",
+          "$ref": "#/$defs/SessionKind"
+        },
+        "owner": {
+          "description": "Owner who may share the session, never substituted for an input author.",
+          "$ref": "#/$defs/ContributorId"
+        },
+        "parent": {
+          "description": "Optional parent session, preserving subagent relationships.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runtime": {
+          "description": "Authorized runtime and host binding.",
+          "$ref": "#/$defs/RuntimeBinding"
+        },
+        "title": {
+          "description": "Display label.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "owner",
+        "title",
+        "kind",
+        "runtime"
+      ]
+    },
+    "SessionId": {
+      "description": "Reconnectable session identity, preserved across provider changes.",
+      "type": "string"
+    },
+    "SessionKind": {
+      "description": "Session purpose, independent of ownership and individual contributors.",
+      "oneOf": [
+        {
+          "description": "Ordinary human-directed or autonomous runner.",
+          "type": "string",
+          "const": "runner"
+        },
+        {
+          "description": "Ambient Control session; execution also requires current ownership fencing.",
+          "type": "string",
+          "const": "control"
+        }
+      ]
+    },
+    "SessionPermission": {
+      "description": "Permission within an existing session; none permit host file/process access.",
+      "oneOf": [
+        {
+          "description": "Observe the authorized session's runtime history and state.",
+          "type": "string",
+          "const": "observe"
+        },
+        {
+          "description": "Submit attributed input to the runtime.",
+          "type": "string",
+          "const": "submit_input"
+        },
+        {
+          "description": "Manage session participation, subject to workspace policy.",
+          "type": "string",
+          "const": "invite"
+        }
+      ]
+    },
+    "StreamId": {
+      "description": "Recovery stream generation, changed after resets or visibility changes.",
+      "type": "string"
+    },
+    "SubmitInput": {
+      "description": "Attributed text input. Identity and retry key live in the request envelope.",
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "description": "Target existing session in the request's workspace.",
+          "$ref": "#/$defs/SessionId"
+        },
+        "text": {
+          "description": "Exact submitted text, preserved across forwarding and retries.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "text"
+      ]
+    },
+    "Timestamp": {
+      "description": "Milliseconds since the Unix epoch; clocks do not define event/input ordering.",
+      "type": "string",
+      "not": {
+        "pattern": "[^0-9]"
+      },
+      "pattern": "^(0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]|1844674407370955161[0-4]|18446744073709551615)$"
+    },
+    "Workspace": {
+      "description": "One workspace binds to exactly one logical chain.\n\nChanging coordination mode preserves workspace, chain, repository and session\nidentities. The engine receives only `chain`, never this metadata object.",
+      "type": "object",
+      "properties": {
+        "chain": {
+          "description": "Immutable logical chain binding.",
+          "$ref": "#/$defs/ChainRef"
+        },
+        "id": {
+          "description": "Workspace identity; must match the request/event scope.",
+          "$ref": "#/$defs/WorkspaceId"
+        },
+        "mode": {
+          "description": "Coordination source and repository bindings.",
+          "$ref": "#/$defs/CoordinationMode"
+        },
+        "name": {
+          "description": "Presentation label.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "chain",
+        "mode"
+      ]
+    },
+    "WorkspaceId": {
+      "description": "Stable logical workspace identity, preserved when adopting managed coordination.",
+      "type": "string"
+    },
+    "WriteCondition": {
+      "description": "Required precondition for a metadata write; there is no blind overwrite.",
+      "oneOf": [
+        {
+          "description": "Create only if the entity has never existed in this scope.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "absent"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Replace only the stated current revision.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "revision"
+            },
+            "value": {
+              "$ref": "#/$defs/Revision"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ]
+        }
+      ]
+    }
+  }
+}

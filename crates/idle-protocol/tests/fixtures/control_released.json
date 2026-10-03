@@ -1,0 +1,25 @@
+{
+  "api_version": "1",
+  "event_id": "event-release",
+  "cursor": {
+    "workspace_id": "workspace-one",
+    "contributor_id": "contributor-bob",
+    "stream_id": "stream-standalone-bob-1",
+    "position": "12"
+  },
+  "produced_at": "1400",
+  "recorded_at": "1401",
+  "causation": {
+    "workspace_id": "workspace-one",
+    "contributor_id": "contributor-alice",
+    "request_id": "release-42"
+  },
+  "body": {
+    "kind": "control_changed",
+    "data": {
+      "workspace_id": "workspace-one",
+      "last_epoch": "9007199254740995",
+      "lease": null
+    }
+  }
+}

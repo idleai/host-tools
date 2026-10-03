@@ -1,0 +1,28 @@
+{
+  "api_version": "1",
+  "workspace_id": "workspace-one",
+  "produced_at": "1100",
+  "update": {
+    "input": {
+      "session_id": "session-shared",
+      "request": {
+        "workspace_id": "workspace-one",
+        "contributor_id": "contributor-bob",
+        "request_id": "input-42"
+      }
+    },
+    "contributor": {
+      "contributor_id": "contributor-bob",
+      "authenticated_as": {
+        "issuer": "peer-key",
+        "subject": "bob-key"
+      }
+    },
+    "runtime_id": "runtime-evo",
+    "revision": "1",
+    "state": {
+      "kind": "accepted",
+      "accepted_at": "1100"
+    }
+  }
+}
