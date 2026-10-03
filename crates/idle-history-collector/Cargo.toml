@@ -1,0 +1,26 @@
+[package]
+name = "idle-history-collector"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+publish = false
+description = "Folder-bound source collection and history change notifications"
+repository = "https://github.com/idleai/host-tools"
+
+[dependencies]
+editchain-core = { path = "../../../editchain/crates/editchain-core" }
+editchain-engine = { path = "../../../editchain/crates/editchain-engine" }
+idle-history-import = { path = "../idle-history-import" }
+editchain-store = { path = "../../../editchain/crates/editchain-store" }
+editchain-git = { path = "../../../editchain/crates/editchain-git" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+blake3 = "1"
+ctrlc = { version = "3.5", features = ["termination"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

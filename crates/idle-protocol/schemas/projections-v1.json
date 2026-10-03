@@ -1,0 +1,327 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProjectionSnapshot",
+  "description": "Versioned replacement input shared by Evo, standalone/managed hosts and clients.",
+  "type": "object",
+  "properties": {
+    "chain": {
+      "description": "Exactly one logical chain; every history reference is relative to it.",
+      "$ref": "#/$defs/ChainRef"
+    },
+    "inputs": {
+      "description": "Exactly one input for each destination, including unavailable destinations.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ProjectionInput"
+      }
+    },
+    "version": {
+      "description": "Required shared input version, independent of controller payload versions.",
+      "$ref": "#/$defs/ApiVersion"
+    },
+    "workspace_id": {
+      "description": "Authorized workspace scope; a chain alone does not establish visibility.",
+      "$ref": "#/$defs/WorkspaceId"
+    }
+  },
+  "required": [
+    "version",
+    "workspace_id",
+    "chain",
+    "inputs"
+  ],
+  "$defs": {
+    "ApiVersion": {
+      "description": "Required protocol discriminator, independent of the Cargo package version.",
+      "oneOf": [
+        {
+          "description": "The v1 JSON representation.",
+          "type": "string",
+          "const": "1"
+        }
+      ]
+    },
+    "ChainRef": {
+      "description": "Opaque engine-issued logical chain reference; not a storage URL or workspace ID.",
+      "type": "string"
+    },
+    "FreshnessStatus": {
+      "description": "Provider's explicit assessment; clocks and operation-ID order cannot imply it.",
+      "oneOf": [
+        {
+          "description": "Provider has established that its declared coverage is current.",
+          "type": "string",
+          "const": "current"
+        },
+        {
+          "description": "Provider knows that its derivation requires rebuilding.",
+          "type": "string",
+          "const": "stale"
+        },
+        {
+          "description": "No currentness claim is available.",
+          "type": "string",
+          "const": "unknown"
+        }
+      ]
+    },
+    "ProjectionAvailability": {
+      "description": "Scope completeness, independent of freshness or the number of returned rows.",
+      "oneOf": [
+        {
+          "description": "Provider returned all results in the requested scope without known gaps.",
+          "type": "string",
+          "const": "complete"
+        },
+        {
+          "description": "Bounded results, unresolved records/content, or incomplete derivation.",
+          "type": "string",
+          "const": "partial"
+        },
+        {
+          "description": "The adapter or required controller mapping is unavailable.",
+          "type": "string",
+          "const": "unavailable"
+        }
+      ]
+    },
+    "ProjectionCount": {
+      "description": "Provider-supplied count of rows in a projection, independent of paging.",
+      "type": "string",
+      "not": {
+        "pattern": "[^0-9]"
+      },
+      "pattern": "^(0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]|1844674407370955161[0-4]|18446744073709551615)$"
+    },
+    "ProjectionFreshness": {
+      "description": "Freshness of one result and all of its rows, preserved across client filtering.",
+      "type": "object",
+      "properties": {
+        "checkpoint": {
+          "description": "Opaque provider checkpoint; clients never order it or use it as a page cursor.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "generated_at": {
+          "description": "When this result was computed, if supplied; not an ordering watermark.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "description": "Explicit provider assessment.",
+          "$ref": "#/$defs/FreshnessStatus"
+        }
+      },
+      "required": [
+        "status"
+      ]
+    },
+    "ProjectionGap": {
+      "description": "A presentable limitation with any exact address known to the provider.",
+      "type": "object",
+      "properties": {
+        "message": {
+          "description": "Provider-supplied explanation; never interpreted as a status code.",
+          "type": "string"
+        },
+        "reference": {
+          "description": "Missing, conflicted or otherwise unresolved history address, when known.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectionReference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "message"
+      ]
+    },
+    "ProjectionInput": {
+      "description": "One destination's input; completeness and freshness are always explicit.",
+      "type": "object",
+      "properties": {
+        "availability": {
+          "description": "Distinguishes known empty results from partial or unavailable results.",
+          "$ref": "#/$defs/ProjectionAvailability"
+        },
+        "freshness": {
+          "description": "Currentness applies to the entire supplied result.",
+          "$ref": "#/$defs/ProjectionFreshness"
+        },
+        "gaps": {
+          "description": "Explicit limitations, including bounds, conflicts and missing content.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProjectionGap"
+          }
+        },
+        "kind": {
+          "description": "Destination view.",
+          "$ref": "#/$defs/ProjectionKind"
+        },
+        "rows": {
+          "description": "Rows in provider order; clients do not sort by observation identity.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProjectionRow"
+          }
+        },
+        "total": {
+          "description": "Supplied scope total, possibly unknown for partial/unavailable results.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectionCount"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "freshness",
+        "availability",
+        "rows",
+        "gaps"
+      ]
+    },
+    "ProjectionKind": {
+      "description": "Presentation destination, not a controller taxonomy or an engine record kind.",
+      "oneOf": [
+        {
+          "description": "Recorded workspace activity.",
+          "type": "string",
+          "const": "activity"
+        },
+        {
+          "description": "Provider-supplied tasks.",
+          "type": "string",
+          "const": "task"
+        },
+        {
+          "description": "Provider-supplied errors.",
+          "type": "string",
+          "const": "error"
+        },
+        {
+          "description": "Items the provider has placed in triage.",
+          "type": "string",
+          "const": "triage"
+        },
+        {
+          "description": "Requests the provider has marked as needing human input.",
+          "type": "string",
+          "const": "need_input"
+        }
+      ]
+    },
+    "ProjectionReference": {
+      "description": "Full history address within the enclosing snapshot's logical chain.\n\nAt least one of observation/item is required. If both are present, the item\nis the logical identity of that observation, not a note target or link endpoint.\nUse separate references for targets, endpoints and summary coverage.",
+      "type": "object",
+      "properties": {
+        "item": {
+          "description": "Full 256-bit logical item identity, independent of the observation ID.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observation": {
+          "description": "Full 256-bit observation identity in lowercase hexadecimal, never a prefix.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "record_hash": {
+          "description": "Full digest of an exact stored representation, only with an observation.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "ProjectionRow": {
+      "description": "One supplied presentation row. Status and labels have no app-core semantics.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "description": "Stable provider key, unique within its destination; never a shortened ID.",
+          "type": "string"
+        },
+        "labels": {
+          "description": "Opaque supplied labels; app-core never infers them from recorded text.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "related": {
+          "description": "Targets, Link endpoints, summary coverage or other supplied history links.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProjectionReference"
+          }
+        },
+        "sources": {
+          "description": "Records that produced the row; each source must name an observation.\nRetain its logical item and original encoding digest whenever available.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProjectionReference"
+          }
+        },
+        "status": {
+          "description": "Opaque provider status; app-core only filters for exact equality.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summary": {
+          "description": "Optional supplied display text; drill-down uses the retained references.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "Supplied heading.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "labels",
+        "sources",
+        "related"
+      ]
+    },
+    "Timestamp": {
+      "description": "Milliseconds since the Unix epoch; clocks do not define event/input ordering.",
+      "type": "string",
+      "not": {
+        "pattern": "[^0-9]"
+      },
+      "pattern": "^(0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]|1844674407370955161[0-4]|18446744073709551615)$"
+    },
+    "WorkspaceId": {
+      "description": "Stable logical workspace identity, preserved when adopting managed coordination.",
+      "type": "string"
+    }
+  }
+}

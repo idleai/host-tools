@@ -1,0 +1,308 @@
+{
+  "api_version": "1",
+  "request": {
+    "workspace_id": "workspace-one",
+    "contributor_id": "contributor-bob",
+    "request_id": "snapshot-1"
+  },
+  "result": {
+    "status": "success",
+    "data": {
+      "kind": "snapshot",
+      "data": {
+        "as_of": {
+          "workspace_id": "workspace-one",
+          "contributor_id": "contributor-bob",
+          "stream_id": "stream-standalone-bob-1",
+          "position": "10"
+        },
+        "workspace": {
+          "revision": "1",
+          "value": {
+            "id": "workspace-one",
+            "name": "Shared investigation",
+            "chain": "chain-original",
+            "mode": {
+              "kind": "standalone",
+              "repository": {
+                "id": "repository-one",
+                "name": "shared-repo",
+                "remote": "https://example.com/team/repo.git"
+              }
+            }
+          }
+        },
+        "contributors": [
+          {
+            "revision": "1",
+            "value": {
+              "id": "contributor-alice",
+              "display_name": "Alice",
+              "identities": [
+                {
+                  "issuer": "peer-key",
+                  "subject": "alice-key"
+                }
+              ]
+            }
+          },
+          {
+            "revision": "1",
+            "value": {
+              "id": "contributor-bob",
+              "display_name": "Bob",
+              "identities": [
+                {
+                  "issuer": "peer-key",
+                  "subject": "bob-key"
+                }
+              ]
+            }
+          }
+        ],
+        "memberships": [
+          {
+            "revision": "1",
+            "value": {
+              "contributor_id": "contributor-alice",
+              "role": "owner",
+              "status": "active"
+            }
+          },
+          {
+            "revision": "1",
+            "value": {
+              "contributor_id": "contributor-bob",
+              "role": "member",
+              "status": "active"
+            }
+          }
+        ],
+        "invitations": [
+          {
+            "revision": "1",
+            "value": {
+              "id": "invite-bob",
+              "invited_by": "contributor-alice",
+              "invitee": {
+                "kind": "contributor",
+                "value": "contributor-bob"
+              },
+              "role": "member",
+              "expires_at": "2000",
+              "status": {
+                "kind": "accepted",
+                "contributor_id": "contributor-bob"
+              }
+            }
+          }
+        ],
+        "sessions": [
+          {
+            "revision": "1",
+            "value": {
+              "id": "session-shared",
+              "owner": "contributor-alice",
+              "title": "Investigation",
+              "kind": "runner",
+              "runtime": {
+                "host_id": "host-shared",
+                "runtime_id": "runtime-evo"
+              },
+              "parent": null
+            }
+          },
+          {
+            "revision": "1",
+            "value": {
+              "id": "session-control",
+              "owner": "contributor-alice",
+              "title": "Ambient control",
+              "kind": "control",
+              "runtime": {
+                "host_id": "host-shared",
+                "runtime_id": "runtime-control"
+              },
+              "parent": null
+            }
+          }
+        ],
+        "hosts": [
+          {
+            "revision": "1",
+            "value": {
+              "id": "host-shared",
+              "owner": "contributor-alice",
+              "name": "Shared workstation",
+              "capabilities": [
+                "sessions",
+                "files",
+                "processes",
+                "local_models"
+              ],
+              "health": {
+                "availability": "available",
+                "observed_at": "950",
+                "valid_until": "2500"
+              },
+              "routes": [
+                {
+                  "protocol": "peer",
+                  "reference": "route-workstation"
+                }
+              ]
+            }
+          }
+        ],
+        "providers": [
+          {
+            "revision": "1",
+            "value": {
+              "id": "provider-local",
+              "owner": "contributor-alice",
+              "name": "Local models",
+              "kind": {
+                "kind": "local",
+                "host_id": "host-shared",
+                "runtime_id": "runtime-evo"
+              },
+              "health": {
+                "availability": "available",
+                "observed_at": "950",
+                "valid_until": "2500"
+              },
+              "routes": [
+                {
+                  "protocol": "evo-models",
+                  "reference": "route-models"
+                }
+              ]
+            }
+          }
+        ],
+        "models": [
+          {
+            "revision": "1",
+            "value": {
+              "id": "model-one",
+              "provider_id": "provider-local",
+              "name": "Local coding model",
+              "capabilities": [
+                "text",
+                "tools"
+              ],
+              "health": {
+                "availability": "available",
+                "observed_at": "950",
+                "valid_until": "2500"
+              }
+            }
+          }
+        ],
+        "grants": [
+          {
+            "revision": "1",
+            "value": {
+              "id": "grant-session-bob",
+              "grantee": "contributor-bob",
+              "granted_by": "contributor-alice",
+              "scope": {
+                "kind": "session",
+                "session_id": "session-shared",
+                "permissions": [
+                  "observe",
+                  "submit_input"
+                ]
+              },
+              "expires_at": null,
+              "status": {
+                "kind": "active"
+              }
+            }
+          },
+          {
+            "revision": "1",
+            "value": {
+              "id": "grant-compute-bob",
+              "grantee": "contributor-bob",
+              "granted_by": "contributor-alice",
+              "scope": {
+                "kind": "compute",
+                "host_id": "host-shared",
+                "permissions": [
+                  "connect",
+                  "execute"
+                ]
+              },
+              "expires_at": null,
+              "status": {
+                "kind": "active"
+              }
+            }
+          },
+          {
+            "revision": "1",
+            "value": {
+              "id": "grant-provider-bob",
+              "grantee": "contributor-bob",
+              "granted_by": "contributor-alice",
+              "scope": {
+                "kind": "provider",
+                "provider_id": "provider-local",
+                "permissions": [
+                  "use_models"
+                ]
+              },
+              "expires_at": null,
+              "status": {
+                "kind": "active"
+              }
+            }
+          }
+        ],
+        "control": {
+          "workspace_id": "workspace-one",
+          "last_epoch": "9007199254740995",
+          "lease": {
+            "fence": {
+              "workspace_id": "workspace-one",
+              "epoch": "9007199254740995",
+              "holder": {
+                "runtime_id": "runtime-control",
+                "host_id": "host-shared",
+                "session_id": "session-control"
+              }
+            },
+            "acquired_at": "800",
+            "expires_at": "3000"
+          }
+        },
+        "inputs": [
+          {
+            "input": {
+              "session_id": "session-shared",
+              "request": {
+                "workspace_id": "workspace-one",
+                "contributor_id": "contributor-bob",
+                "request_id": "input-42"
+              }
+            },
+            "contributor": {
+              "contributor_id": "contributor-bob",
+              "authenticated_as": {
+                "issuer": "peer-key",
+                "subject": "bob-key"
+              }
+            },
+            "runtime_id": "runtime-evo",
+            "revision": "1",
+            "state": {
+              "kind": "accepted",
+              "accepted_at": "1100"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

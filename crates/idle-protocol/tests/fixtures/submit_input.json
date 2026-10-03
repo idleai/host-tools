@@ -1,0 +1,23 @@
+{
+  "api_version": "1",
+  "context": {
+    "workspace_id": "workspace-one",
+    "request_id": "input-42",
+    "contributor": {
+      "contributor_id": "contributor-bob",
+      "authenticated_as": {
+        "issuer": "peer-key",
+        "subject": "bob-key"
+      }
+    },
+    "expires_at": "2000"
+  },
+  "control_fence": null,
+  "body": {
+    "kind": "submit_input",
+    "data": {
+      "session_id": "session-shared",
+      "text": "Continue the investigation.\nKeep the original tool output."
+    }
+  }
+}

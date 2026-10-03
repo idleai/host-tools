@@ -1,0 +1,28 @@
+{
+  "api_version": "1",
+  "context": {
+    "workspace_id": "workspace-one",
+    "request_id": "catch-up-42",
+    "contributor": {
+      "contributor_id": "contributor-bob",
+      "authenticated_as": {
+        "issuer": "peer-key",
+        "subject": "bob-key"
+      }
+    },
+    "expires_at": "2000"
+  },
+  "control_fence": null,
+  "body": {
+    "kind": "catch_up",
+    "data": {
+      "after": {
+        "workspace_id": "workspace-one",
+        "contributor_id": "contributor-bob",
+        "stream_id": "stream-standalone-bob-1",
+        "position": "10"
+      },
+      "limit": 100
+    }
+  }
+}

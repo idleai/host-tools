@@ -1,0 +1,52 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: host-tools
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: host-tools
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: idleai/editchain
+          ref: 45b94c95a2cb185a59e58cf0763f589c666ab1e6
+          path: editchain
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: idleai/codex-evo
+          ref: 903d7f1c62c621cf1f925362ac88893ec1f36b07
+          path: codex
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.0
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            host-tools -> target
+            editchain -> target
+            codex/tools/codex-session-exporter -> target
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: host-tools/packages/history-runtime/package-lock.json
+      - run: npm --prefix packages/history-runtime ci
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked --version 0.20.2
+      - run: bash scripts/check.sh

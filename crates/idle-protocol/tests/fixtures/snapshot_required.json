@@ -1,0 +1,18 @@
+{
+  "api_version": "1",
+  "request": {
+    "workspace_id": "workspace-one",
+    "contributor_id": "contributor-bob",
+    "request_id": "catch-up-43"
+  },
+  "result": {
+    "status": "success",
+    "data": {
+      "kind": "catch_up",
+      "data": {
+        "kind": "snapshot_required",
+        "data": "stream_changed"
+      }
+    }
+  }
+}

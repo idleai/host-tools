@@ -1,0 +1,18 @@
+{
+  "api_version": "1",
+  "request": {
+    "workspace_id": "workspace-one",
+    "contributor_id": "contributor-bob",
+    "request_id": "input-42"
+  },
+  "result": {
+    "status": "failure",
+    "data": {
+      "code": "idempotency_conflict",
+      "message": "The request key already identifies different input.",
+      "retry": {
+        "kind": "never"
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "api_version": "1",
+  "request": {
+    "workspace_id": "workspace-one",
+    "contributor_id": "contributor-bob",
+    "request_id": "input-42"
+  },
+  "result": {
+    "status": "success",
+    "data": {
+      "kind": "received",
+      "data": {
+        "request": {
+          "workspace_id": "workspace-one",
+          "contributor_id": "contributor-bob",
+          "request_id": "input-42"
+        },
+        "received_at": "1000",
+        "retry_until": "5000"
+      }
+    }
+  }
+}
