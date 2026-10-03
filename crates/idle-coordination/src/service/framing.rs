@@ -12,7 +12,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::{Error, Result};
+use crate::{Error, Result, transport::bounded};
 
 use super::{Command, SERVICE_VERSION, Service};
 
@@ -269,14 +269,18 @@ impl<R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Client<R, W> {
         self.sequence = self.sequence.checked_add(1).ok_or(Error::Invalid)?;
         let id = self.sequence.to_string();
         self.healthy = false;
-        write_frame(
-            &mut self.writer,
-            &Message::Call(ServiceRequest {
-                version: SERVICE_VERSION,
-                id: id.clone(),
-                timeout_ms,
-                command,
-            }),
+        bounded(
+            cancel,
+            Duration::from_millis(u64::from(timeout_ms)),
+            write_frame(
+                &mut self.writer,
+                &Message::Call(ServiceRequest {
+                    version: SERVICE_VERSION,
+                    id: id.clone(),
+                    timeout_ms,
+                    command,
+                }),
+            ),
         )
         .await?;
         let read = read_frame::<ServiceResponse>(&mut self.reader);
@@ -284,8 +288,10 @@ impl<R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Client<R, W> {
         let response = tokio::select! {
             biased;
             () = cancel.cancelled() => {
-                write_frame(&mut self.writer, &Message::Cancel(id.clone())).await?;
-                tokio::time::timeout(Duration::from_secs(15), &mut read).await.map_err(|_error| Error::Timeout)??
+                tokio::time::timeout(Duration::from_secs(15), async {
+                    write_frame(&mut self.writer, &Message::Cancel(id.clone())).await?;
+                    read.await
+                }).await.map_err(|_error| Error::Timeout)??
             }
             response = tokio::time::timeout(Duration::from_millis(u64::from(timeout_ms).saturating_add(15_000)), &mut read) => response.map_err(|_error| Error::Timeout)??,
         }.ok_or(Error::Transport)?;

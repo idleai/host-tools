@@ -40,6 +40,152 @@ fn launch(path: &Path) -> Result<(Child, Client<ChildStdout, ChildStdin>)> {
     Ok((child, Client::new(reader, writer)))
 }
 
+#[tokio::test]
+async fn automatic_resume_keeps_a_completed_stop_disabled() -> support::TestResult {
+    let root = tempfile::tempdir()?;
+    let guest_root = tempfile::tempdir()?;
+    let engine = support::engine(root.path());
+    seed(&engine.chain, 1, 1, b"retained history")?;
+    let storage = support::storage(root.path())?;
+    let relay = Relay::new(Arc::new(TestClock::default()));
+    let mut peers = relay
+        .coordinator(
+            engine.clone(),
+            storage.clone(),
+            Arc::new(Credential::default()),
+        )
+        .await?;
+    let guest = support::engine(guest_root.path()).identity().await?;
+    let _invitation = peers
+        .host_history(
+            &encode(&JoinRequest {
+                version: 1,
+                kind: RequestKind::Request,
+                device: guest,
+            })?,
+            ScopeChoice::FromNow,
+            &CancellationToken::new(),
+        )
+        .await?;
+    let scope = engine.scope().await?;
+    peers.stop().await?;
+    drop(peers);
+    drop(storage);
+    let config = Configuration {
+        state_directory: root.path().join("private"),
+        chain_directory: engine.chain.clone(),
+        device_directory: engine.device_directory.clone(),
+        workspace: support::workspace(),
+        contributor: principal("owner").contributor,
+        runtime: None,
+        credential_variable: None,
+        discovery_repository: None,
+        resume_sharing: true,
+    };
+    let mut service = config.open().await?;
+    ensure!(
+        !service.peers.status().enabled,
+        "a completed Stop cannot automatically resume"
+    )?;
+    equal!(
+        engine.scope().await?,
+        scope,
+        "Stop and restart must preserve the engine boundary"
+    )?;
+    let _snapshot = service
+        .call(Command::Snapshot, &CancellationToken::new())
+        .await?;
+    service.suspend().await?;
+    Ok(())
+}
+
+#[tokio::test(start_paused = true)]
+async fn blocked_request_write_observes_cancellation_and_invalidates_client() -> support::TestResult
+{
+    let (client_stream, _unread_server) = tokio::io::duplex(1);
+    let (reader, writer) = tokio::io::split(client_stream);
+    let mut client = Client::new(reader, writer);
+    let cancel = CancellationToken::new();
+    let interrupt = async {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        cancel.cancel();
+    };
+    let pending = tokio::time::timeout(
+        Duration::from_secs(1),
+        client.call(Command::Versions, 60_000, &cancel),
+    );
+    let (result, ()) = tokio::join!(pending, interrupt);
+    equal!(
+        result?,
+        Err(Error::Cancelled),
+        "cancellation must interrupt a partially written frame"
+    )?;
+    equal!(
+        client
+            .call(Command::Versions, 1000, &CancellationToken::new())
+            .await,
+        Err(Error::Transport),
+        "partial writes must invalidate the logical connection"
+    )?;
+    Ok(())
+}
+
+#[tokio::test(start_paused = true)]
+async fn blocked_request_write_observes_its_timeout() -> support::TestResult {
+    let (client_stream, _unread_server) = tokio::io::duplex(1);
+    let (reader, writer) = tokio::io::split(client_stream);
+    let mut client = Client::new(reader, writer);
+    let result = tokio::time::timeout(
+        Duration::from_secs(1),
+        client.call(Command::Versions, 10, &CancellationToken::new()),
+    )
+    .await?;
+    equal!(
+        result,
+        Err(Error::Timeout),
+        "request writes must use the call's timeout"
+    )?;
+    Ok(())
+}
+
+#[tokio::test(start_paused = true)]
+async fn blocked_cancellation_notice_uses_the_cleanup_deadline() -> support::TestResult {
+    let message =
+        idle_coordination::service::Message::Call(idle_coordination::service::ServiceRequest {
+            version: 1,
+            id: "1".into(),
+            timeout_ms: 60_000,
+            command: Command::Versions,
+        });
+    let capacity = serde_json::to_vec(&message)?.len().saturating_add(4);
+    let (client_stream, _unread_server) = tokio::io::duplex(capacity);
+    let (reader, writer) = tokio::io::split(client_stream);
+    let mut client = Client::new(reader, writer);
+    let cancel = CancellationToken::new();
+    let interrupt = async {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        cancel.cancel();
+    };
+    let pending = tokio::time::timeout(
+        Duration::from_secs(16),
+        client.call(Command::Versions, 60_000, &cancel),
+    );
+    let (result, ()) = tokio::join!(pending, interrupt);
+    equal!(
+        result?,
+        Err(Error::Timeout),
+        "the cleanup deadline must include writing Cancel"
+    )?;
+    equal!(
+        client
+            .call(Command::Versions, 1000, &CancellationToken::new())
+            .await,
+        Err(Error::Transport),
+        "an unfinished cancellation notice must invalidate framing"
+    )?;
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn standalone_executable_serves_and_recovers_without_node_or_application_hosts()
 -> support::TestResult {

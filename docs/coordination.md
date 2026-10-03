@@ -1,53 +1,45 @@
 # Native repository coordination
 
-`idle-coordination` provides a Rust library and `idle-coordination` executable.
-They run without Node, app-core, VS Code or a managed backend. EditChain handles
-peer-v5 TLS authentication, approved device membership, inventories, durable
-records and blobs. The coordinator handles consent, relay lifetime, retries,
-discovery and shared `idle-history` connection status.
+`idle-coordination` is a Rust library and executable that runs without Node,
+app-core, VS Code or a managed backend. EditChain handles peer-v5 authentication,
+device membership and durable record/blob replication. The coordinator manages
+repository metadata, consent, relay connections, retries and discovery.
 
 ## Authority and authentication
 
 One `Authority` owns a repository's metadata, settings/rules, view definitions,
-memberships, resource grants and controller lease. `FilePersistence` exclusively
-locks its private directory and commits with compare-and-swap, atomic replacement
-and filesystem synchronization. A second local owner is rejected. Injected
-`Persistence` adapters must provide the same atomic, durable guarantees.
+memberships, resource grants and controller lease. `FilePersistence` locks its
+private directory and commits through atomic, synchronized compare-and-swap.
+Injected `Persistence` adapters must provide the same guarantees.
 
-The authority is a single writer. Peer history replication does not replicate
-metadata authority state or elect controllers independently on each peer. An
-embedding host must route collaborators' metadata operations to this authority
-and authenticate every `Principal` outside the supplied JSON. The native stdin
-service trusts the process owner and binds one principal at startup. It does not
-open a network listener. An adapter exposing it over a socket or remote API must
-supply authentication and connection isolation itself.
+All collaborators' metadata operations must reach this single writer; history
+replication neither copies authority state nor elects controllers. Embedding
+hosts authenticate each `Principal` outside request JSON. The native stdin
+service binds the process owner's principal at startup and opens no network
+listener. Socket or remote adapters supply authentication and connection isolation.
 
-`Request<Mutation>` retains the existing protocol envelope, exact contributor,
-workspace, immutable request key, deadline and optional control fence. Conditional
-writes require `Absent` or the exact current revision. Settings and agent rules
-have separate revisions and preserve complete JSON text, including unknown fields.
-Saved views contain definitions; projection results are still derived elsewhere.
+`Request<Mutation>` carries the contributor, workspace, immutable request key,
+deadline and optional control fence. Writes require `Absent` or the exact current
+revision. Settings and agent rules have separate revisions and preserve unknown
+JSON fields. Saved views contain definitions; their results are derived elsewhere.
 
-Successful writes and definite refusals retain their original results. Retrying
-the same key with a changed envelope or operation is a conflict. Requests expire
-within 24 hours; up to 4,096 unexpired outcomes are retained, and capacity is
-refused instead of dropping active retry identities. A storage failure may have
-committed: the authority faults until reopened, after which `request_status`
-resolves the original result. Do not mint a new key for an uncertain request.
+Successful writes and domain refusals retain their original results. Reusing a
+key with different content is a conflict. Requests expire within 24 hours, with
+at most 4,096 retained outcomes and 16 MiB of saved state. Capacity refusals leave
+existing state and retries available. A storage failure may have committed:
+reopen the faulted authority and use `request_status` with the original key.
 
-Membership grants metadata participation. It does not grant host execution,
-session input or provider use. Those resource permissions are checked separately;
-membership revocation overrides them. Snapshots filter sessions, hosts, providers
-and grants for the current contributor. Recovery retains 256 ordered invalidations;
-membership/grant changes retire the visibility generation, and missing history
-requires a replacement snapshot. Presence is transient, attributed to the
-authenticated contributor, validated against the repository and visible hosts,
-and expires within 120 seconds.
+Membership permits metadata participation; host execution, session input and
+provider use require separate grants. Revoking membership overrides those grants.
+Snapshots filter resources for the current contributor. Recovery keeps 256
+ordered invalidations; membership/grant changes or missing history require a new
+snapshot. Presence is attributed to the authenticated contributor, limited to the
+repository and visible hosts, and expires within 120 seconds.
 
-Controller acquisition/renewal checks the authenticated runtime, host, Control
-session and relevant grants. Epochs increase durably; leases last at most 60
-seconds. Restart retires the old lease while retaining its watermark. Consumers
-must revalidate the exact fence with `validate_control` immediately before use.
+Controller leases check the authenticated runtime, host, Control session and
+grants. Epochs increase durably; leases last at most 60 seconds. Validation time
+never moves backward within an open authority. Restart retires the lease while
+retaining its epoch. Call `validate_control` immediately before using a fence.
 
 ## Native process
 
@@ -56,9 +48,8 @@ For a library consumer, add a path dependency on
 consuming workspace root: copy both `[patch]` tables from this repository's
 [Cargo.toml](../Cargo.toml), adjusting the compatibility crate's path to
 `../host-tools/crates/idle-ssh-buffer-compat`. Keep their exact Git revisions and
-commit the resulting lockfile. Depending on the library alone does not propagate
-those workspace patches. Instantiate `Authority` and `PeerCoordinator` directly,
-or construct a `Service` with your authenticated principal and adapters.
+commit the resulting lockfile. Instantiate `Authority` and `PeerCoordinator`
+directly, or construct a `Service` with your authenticated principal and adapters.
 
 Build from this checkout with the sibling EditChain checkout:
 
@@ -66,11 +57,9 @@ Build from this checkout with the sibling EditChain checkout:
 cargo build --locked -p idle-coordination --bin idle-coordination
 ```
 
-Distribute the resulting executable with the platform's OpenSSL and system TLS
-requirements. Node is used only by development interoperability tests. The native
-library embeds the engine worker; it needs no separate worker executable. The
-same binary's `--peer-worker` entrypoint exposes EditChain's existing worker IPC
-for hosts that already use that interface.
+The executable requires the platform's OpenSSL and system TLS libraries. It embeds
+the engine worker; `--peer-worker` also exposes EditChain's existing worker IPC.
+Node is needed only for development interoperability tests.
 
 Create a trusted local configuration, replacing paths and stable IDs:
 
@@ -103,19 +92,16 @@ Create a trusted local configuration, replacing paths and stable IDs:
 }
 ```
 
-The service creates its state directory privately; existing Unix directories
-must already have owner-only permissions. Preserve that directory, the chain and
-the device directory across restarts. The workspace/chain/repository binding is
-validated against saved metadata. Sharing scope and approvals remain in the
-existing engine store. Do not generate new IDs while retrying or adopting it.
+Existing Unix state directories must have owner-only permissions. Preserve the
+state, chain and device directories and their IDs across restarts and adoption;
+startup checks the saved workspace/chain/repository binding. `resume_sharing`
+resumes retained approvals but leaves a completed Stop disabled.
 
 Run `idle-coordination --config /absolute/path/service.json` with pipes connected
-to your native client. No token is stored in the startup configuration. Hosting
-reads the named environment variable for each management request. Guest
-connections use their invitation grant and never fall back to owner credentials.
-The executable's environment adapter cannot obtain a renewed guest grant itself;
-an embedding host may implement `Credentials::renew` against its approved grant
-issuer. An unavailable renewal leaves that connection expired.
+to your native client. Hosting reads the named credential variable for each
+management request; guest connections use only their invitation grant. Embedding
+hosts can implement `Credentials::renew`. The executable cannot renew guest grants
+itself, so an expired connection needs a fresh invitation.
 
 ## Framed API
 
@@ -123,8 +109,10 @@ issuer. An unavailable renewal leaves that connection expired.
 halves. `service::serve` is available to embedding hosts. Each frame is a four-byte
 big-endian unsigned byte length followed by UTF-8 JSON, limited to 16 MiB. The
 service accepts up to eight outstanding calls and serializes their execution.
-`timeout_ms` is a cooperative execution budget, from 1 to 60,000 milliseconds;
-cleanup may extend response time. Cancellation also applies to queued calls.
+`timeout_ms` bounds client request writes and gives the server a cooperative
+execution budget of 1 to 60,000 milliseconds. Cancellation includes queued calls;
+the client allows fifteen seconds to send cancellation and receive cleanup results.
+An interrupted write invalidates the client connection.
 
 The JSON payload of a version query is:
 
@@ -172,12 +160,12 @@ privately. Debug output redacts tokens and service response payloads.
 ## Sharing and discovery
 
 `PeerOptions` injects relay, credentials, persistence and clock adapters.
-`DevTunnels` uses Microsoft's SDK for management, host and client connections;
-it does not invoke Node, a tunnel CLI or a local TCP forwarding listener. The
-native bridge uses bounded I/O, authentication deadlines and at most eight
-active edges, then backs off transient failures with jitter. Simultaneous routes
-collapse by authenticated device identity. Status advances to Live only after
-the engine's durable inventory checks, and exposes record/blob progress.
+`DevTunnels` uses Microsoft's SDK directly. The bridge keeps reads moving during
+blocked writes, bounds buffered output and allows at most eight active edges.
+It enforces authentication deadlines, backs off transient failures with jitter,
+and collapses duplicate routes by authenticated device identity. Shared
+`idle-history` status reaches Live after durable inventory checks and reports
+record/blob progress.
 
 Invitation parsing preserves `editchain:` base64url version-one fields and
 camelCase saved-state fields. It checks certificate fingerprints, the addressed
@@ -193,49 +181,40 @@ tokens cannot trigger account-level guest access. Hosts renew their management
 session before expiry and unregister old relay endpoints before reconnecting.
 Version or authorization failures stop retrying; transient failures back off.
 
-Cloud creation is journaled by an unguessable owner marker before contacting the
-service. Cleanup reconciles uncertain creation and verifies the exact saved
-resource identity plus marker before deletion. Stop is durable before saved
-sharing is cleared; a failed deletion remains pending and is retried on reopen.
-Suspension retains an owned relay for resumption. Unknown creates are retained
-for reconciliation through the resource's expiry window. Explicit teardown
-reports cleanup failures; a process crash may leave a relay until restart or
-its server-side expiration.
+Cloud creation records an owner marker before contacting the service. Cleanup
+verifies the exact resource and marker before deletion. Stop drains connections
+even if its journal fails, and clears saved sharing only after recording the stop.
+Failed deletion is retried on reopen; suspension retains the relay for resumption.
+Uncertain creates remain recorded through the expiry window. Cleanup failures are
+reported; a crash may leave a relay until restart or server-side expiration.
 
-Optional `discovery_repository` enables GitHub Actions repository variables and
-requires suitable GitHub permissions. A configured service refreshes them every
-minute. Entries retain `EDITCHAIN_PEER_` naming and protocol 3. They contain no
-connect token. Discovery only refreshes an existing approved certificate's route
-within the same tunnel and cluster; it cannot enroll a device, broaden consent or
-renew a grant. Presence and directory freshness never imply execution authority.
+Optional `discovery_repository` uses GitHub Actions repository variables, with
+suitable GitHub permissions, refreshed every minute. Protocol-3 `EDITCHAIN_PEER_`
+entries contain no token and refresh only approved routes within the same tunnel
+and cluster. Discovery cannot enroll devices, change consent or renew grants.
 
 ## Managed adoption and f15/f17
 
-Preparation suspends local peers, freezes new mutations, retires the controller
-lease and advances its epoch. The durable transfer retains workspace, repository,
-chain and session IDs, metadata revisions, grants, view definitions and original
-request outcomes. Its consent summary records the engine's current scope and
-approved certificates. The complete scope ledger and record exclusions remain
-in the same engine directory: the summary cannot initialize an equivalent new
-store. Adoption never reconfigures sharing or rewrites that ledger.
-Absent or inactive consent is retained as such; adopting metadata never creates
-a history-sharing approval.
+Preparation suspends peers, freezes mutations, retires the controller lease and
+advances its epoch. Transfer preserves workspace/repository/chain/session IDs,
+metadata revisions, grants, views and request outcomes. The consent summary
+records scope and approved certificates; the complete scope ledger and exclusions
+must stay in the same engine directory. Adoption preserves absent or inactive
+consent and never creates a sharing approval.
 
 `ManagedAdoption::import` must authenticate the destination, import atomically,
 deduplicate the transfer ID and refuse conflicting identity bindings. The
 acknowledgement must match the exact package hash, destination, workspace and
 chain, retaining at least the transferred epoch. Lost acknowledgements retry the
 same frozen package after restart. A bad acknowledgement leaves it frozen.
-Completed adoption reopens as managed; the old local authority cannot accept new
-mutations. The standalone executable has no managed adapter or implicit backend
-credentials. Embedding hosts supply the real adapter when endpoints exist.
+Completed adoption reopens as managed and leaves local mutations disabled.
+Embedding hosts supply the managed adapter and credentials; the standalone
+executable has neither.
 
-The f15/f17 integration must bind Evo's authenticated runtime and route execution
-through current `check_access` and `validate_control` calls. Recheck expiry,
-revocation and epoch at execution, keep session/compute/provider grants separate,
-retain input request identity, and report runtime acceptance/order/completion
-from Evo. This service implements no runtime execution, sandbox policy or fake
-acceptance. Integration with live Evo grants and leases remains in f15/f17.
+The f15/f17 integration binds Evo's authenticated runtime, rechecks `check_access`
+and `validate_control` at execution, and keeps resource grants separate. It must
+preserve input request identity and report acceptance/order/completion from Evo.
+Runtime execution, sandbox policy and live Evo integration remain in f15/f17.
 
 ## Coordinated upgrades
 

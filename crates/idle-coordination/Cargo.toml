@@ -38,3 +38,4 @@ russh = { version = "0.37.1", default-features = false, features = ["openssl"] }
 [dev-dependencies]
 editchain-core = { path = "../../../editchain/crates/editchain-core" }
 editchain-store = { path = "../../../editchain/crates/editchain-store" }
+tokio = { version = "1", features = ["test-util"] }

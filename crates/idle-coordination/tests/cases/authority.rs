@@ -143,6 +143,191 @@ fn register_session(authority: &mut Authority, owner: &Principal) -> Result<Cont
 }
 
 #[test]
+fn clock_rollback_cannot_restore_expired_control_grants_or_presence() -> support::TestResult {
+    let clock = Arc::new(TestClock::default());
+    let storage = Arc::new(Memory::default());
+    let mut service = authority(storage.clone(), clock.clone())?;
+    let mut owner = principal("owner");
+    owner.runtime = Some(RuntimeBinding {
+        host_id: "host".into(),
+        runtime_id: "runtime".into(),
+    });
+    let guest = principal("guest");
+    member(&mut service, &owner, "guest", Role::Member)?;
+    register_host(&mut service, &owner)?;
+    let holder = register_session(&mut service, &owner)?;
+    let _acquired = success(service.execute(
+        &owner,
+        request(
+            &owner,
+            "acquire",
+            Mutation::Control(ControlCommand::Acquire {
+                holder,
+                expected_epoch: ControlEpoch(0),
+                lease_duration_ms: NonZeroU32::new(10_000).expect("positive duration"),
+            }),
+        ),
+    )?);
+    let fence = service
+        .snapshot(&owner)?
+        .control
+        .lease
+        .expect("acquired lease")
+        .fence;
+    let scope = GrantScope::Session {
+        session_id: "session".into(),
+        permissions: vec![SessionPermission::Observe],
+    };
+    let _grant = success(service.execute(
+        &owner,
+        request(
+            &owner,
+            "grant",
+            Mutation::Grant(GrantCommand::Issue {
+                grant_id: "grant".into(),
+                grantee: "guest".into(),
+                scope: scope.clone(),
+                expires_at: Some(Timestamp(NOW.saturating_add(10_000))),
+            }),
+        ),
+    )?);
+    service.publish_presence(
+        &owner,
+        Presence {
+            connection_id: "connection".into(),
+            contributor_id: "owner".into(),
+            repository_id: "repository".into(),
+            branch: None,
+            file: None,
+            host_id: None,
+            summary: None,
+            observed_at: Timestamp(NOW),
+            valid_until: Timestamp(NOW.saturating_add(10_000)),
+        },
+    )?;
+    let check = AccessCheck {
+        contributor_id: "guest".into(),
+        scope,
+    };
+    for offset in [10_001, 5_000] {
+        clock.0.store(NOW.saturating_add(offset), Ordering::SeqCst);
+        ensure!(
+            matches!(
+                service.validate_control(&owner, &fence)?,
+                ControlValidation::Stale { .. }
+            ),
+            "expired controller cannot return after a clock rollback"
+        )?;
+        ensure!(
+            !service.check_access(&guest, &check)?,
+            "expired resource grants cannot return"
+        )?;
+        ensure!(
+            service.presence(&owner)?.is_empty(),
+            "expired presence cannot return"
+        )?;
+    }
+    let _settings = success(service.execute(
+        &owner,
+        request(
+            &owner,
+            "settings",
+            configuration(
+                ConfigurationDocument::Settings,
+                WriteCondition::Absent,
+                "{}",
+            ),
+        ),
+    )?);
+    drop(service);
+    let reopened = authority(storage, clock)?;
+    ensure!(
+        !reopened.check_access(&guest, &check)?,
+        "a later commit must retain the greatest observed time"
+    )?;
+    Ok(())
+}
+
+#[test]
+fn byte_capacity_refusals_preserve_reads_retries_and_later_writes() -> support::TestResult {
+    let root = tempfile::tempdir()?;
+    let clock = Arc::new(TestClock::default());
+    let owner = principal("owner");
+    let mut service = authority(support::storage(root.path())?, clock.clone())?;
+    let json = format!("{{\"value\":\"{}\"}}", "a".repeat(250_000));
+    let original = request(
+        &owner,
+        "settings-0",
+        configuration(
+            ConfigurationDocument::Settings,
+            WriteCondition::Absent,
+            &json,
+        ),
+    );
+    let committed = service.execute(&owner, original.clone())?;
+    let _first = success(committed.clone());
+    let mut revision = Revision(1);
+    let mut refused_at = None;
+    for index in 1_u64..40 {
+        let update = request(
+            &owner,
+            &format!("settings-{index}"),
+            configuration(
+                ConfigurationDocument::Settings,
+                WriteCondition::Revision(revision),
+                &json,
+            ),
+        );
+        let result = service.execute(&owner, update)?;
+        if matches!(result.result, ApiResult::Failure(_)) {
+            refused(result, ErrorCode::RateLimited);
+            refused_at = Some(index);
+            break;
+        }
+        let _updated = success(result);
+        revision.0 = revision.0.checked_add(1).ok_or(Error::Invalid)?;
+    }
+    ensure!(
+        refused_at.is_some(),
+        "the storage byte limit must be reached before the receipt count limit"
+    )?;
+    equal!(
+        service
+            .snapshot(&owner)?
+            .settings
+            .expect("retained settings")
+            .revision,
+        revision,
+        "refusing byte capacity must preserve readable metadata and its revision"
+    )?;
+    equal!(
+        service.execute(&owner, original.clone())?,
+        committed,
+        "previously accepted request outcomes cannot be evicted"
+    )?;
+    equal!(
+        service.request_status(&owner, &original.context.key())?,
+        Some(committed.result),
+        "capacity refusal must not make existing retry results unavailable"
+    )?;
+    clock
+        .0
+        .store(NOW.saturating_add(3_600_001), Ordering::SeqCst);
+    let mut later = request(
+        &owner,
+        "after-expiry",
+        configuration(
+            ConfigurationDocument::Settings,
+            WriteCondition::Revision(revision),
+            &json,
+        ),
+    );
+    later.context.expires_at = Timestamp(NOW.saturating_add(7_200_000));
+    let _updated = success(service.execute(&owner, later)?);
+    Ok(())
+}
+
+#[test]
 fn conditional_documents_retry_identity_and_recovery_are_independent() -> support::TestResult {
     let memory = Arc::new(Memory::default());
     let clock = Arc::new(TestClock::default());

@@ -88,11 +88,8 @@ impl Configuration {
             clock: clock.clone(),
         })
         .await?;
-        if self.resume_sharing
-            && authority.pending_adoption(&principal)?.is_none()
-            && peers.status().space.is_some()
-        {
-            peers.resume().await?;
+        if self.resume_sharing && authority.pending_adoption(&principal)?.is_none() {
+            peers.resume_saved().await?;
         }
         let directory = self
             .discovery_repository

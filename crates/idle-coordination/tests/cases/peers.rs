@@ -114,6 +114,81 @@ impl Pair {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn simultaneous_large_blobs_converge_through_bounded_streams() -> support::TestResult {
+    let mut pair = Pair::new().await?;
+    seed(&pair.left_engine.chain, 1, 2, &vec![41_u8; 1_048_576])?;
+    seed(&pair.right_engine.chain, 2, 2, &vec![42_u8; 1_048_576])?;
+    let _invitation = pair.connect(ScopeChoice::All).await?;
+    until(|| {
+        [&pair.left, &pair.right].iter().all(|peer| {
+            peer.status().peers.iter().any(|connection| {
+                connection.state == ConnectionStatus::Live
+                    && connection
+                        .progress
+                        .as_ref()
+                        .is_some_and(|progress| progress.blobs >= 2)
+            })
+        })
+    })
+    .await;
+    pair.converged(4, 4).await;
+    equal!(
+        pair.relay.connect_attempts.load(Ordering::SeqCst),
+        1,
+        "both directions must complete without a timeout or reconnect"
+    )?;
+    pair.stop().await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn stop_drains_connections_on_unreadable_or_corrupt_journal() -> support::TestResult {
+    let mut pair = Pair::new().await?;
+    let _invitation = pair.connect(ScopeChoice::All).await?;
+    pair.converged(2, 2).await;
+    pair.right_storage
+        .fail_stop_read
+        .store(true, Ordering::SeqCst);
+    equal!(
+        pair.right.stop().await,
+        Err(Error::Storage),
+        "journal read failures must be reported"
+    )?;
+    ensure!(
+        !pair.right.status().enabled,
+        "a failed Stop must retire the active generation"
+    )?;
+    equal!(
+        pair.relay.active_clients.load(Ordering::SeqCst),
+        0,
+        "Stop must await existing transports despite the journal failure"
+    )?;
+    pair.right_storage
+        .fail_stop_read
+        .store(false, Ordering::SeqCst);
+    let _invitation = pair.connect(ScopeChoice::Keep).await?;
+    until(|| pair.relay.active_clients.load(Ordering::SeqCst) == 1).await;
+    pair.right_storage
+        .compare_exchange("sharing-stop", None, Some(b"corrupt"))?;
+    equal!(
+        pair.right.stop().await,
+        Err(Error::Invalid),
+        "corrupt Stop data must remain visible"
+    )?;
+    ensure!(
+        !pair.right.status().enabled,
+        "decoding failures must also retire sharing"
+    )?;
+    equal!(
+        pair.relay.active_clients.load(Ordering::SeqCst),
+        0,
+        "corrupt journal data cannot bypass transport draining"
+    )?;
+    pair.right_storage
+        .compare_exchange("sharing-stop", Some(b"corrupt"), None)?;
+    pair.stop().await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn rust_peers_replicate_records_blobs_live_updates_and_recover_after_restart()
 -> support::TestResult {
     let mut pair = Pair::new().await?;

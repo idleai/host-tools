@@ -338,6 +338,13 @@ impl PeerCoordinator {
         self.launch_saved()
     }
 
+    pub(crate) async fn resume_saved(&mut self) -> Result<()> {
+        if self.shared.access(|state| Ok(state.saved.is_some()))? {
+            self.resume().await?;
+        }
+        Ok(())
+    }
+
     /// Drain old connections and restart from durable inventories and saved grants.
     ///
     /// # Errors
@@ -460,23 +467,10 @@ impl PeerCoordinator {
     /// # Errors
     /// Reports incomplete persistence or resource removal, without losing its owner key.
     pub async fn stop(&mut self) -> Result<()> {
-        let previous = self.shared.storage.load(STOP_KEY)?;
-        let intent: StopIntent = if let Some(bytes) = &previous {
-            serde_json::from_slice(bytes)?
-        } else {
-            self.shared.access(|state| {
-                Ok(StopIntent {
-                    host: state.saved.as_ref().and_then(|saved| saved.host.clone()),
-                })
-            })?
-        };
-        let bytes = serde_json::to_vec(&intent)?;
-        let recorded =
-            self.shared
-                .storage
-                .compare_exchange(STOP_KEY, previous.as_deref(), Some(&bytes));
+        self.cancel.cancel();
+        let recorded = self.record_stop();
         let suspended = self.suspend().await;
-        recorded?;
+        let (intent, bytes) = recorded?;
         self.shared.access(|state| {
             state.peers.clear();
             self.shared.persist(state, None)
@@ -490,6 +484,24 @@ impl PeerCoordinator {
             .storage
             .compare_exchange(STOP_KEY, Some(&bytes), None)?;
         suspended
+    }
+
+    fn record_stop(&self) -> Result<(StopIntent, Vec<u8>)> {
+        let previous = self.shared.storage.load(STOP_KEY)?;
+        let intent: StopIntent = if let Some(bytes) = &previous {
+            serde_json::from_slice(bytes)?
+        } else {
+            self.shared.access(|state| {
+                Ok(StopIntent {
+                    host: state.saved.as_ref().and_then(|saved| saved.host.clone()),
+                })
+            })?
+        };
+        let bytes = serde_json::to_vec(&intent)?;
+        self.shared
+            .storage
+            .compare_exchange(STOP_KEY, previous.as_deref(), Some(&bytes))?;
+        Ok((intent, bytes))
     }
 
     /// Produce credential-free discovery data for the current hosting resource.

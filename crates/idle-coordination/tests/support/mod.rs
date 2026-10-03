@@ -57,10 +57,14 @@ impl Clock for TestClock {
 pub(super) struct Memory {
     pub values: Mutex<BTreeMap<String, Vec<u8>>>,
     pub uncertain: AtomicBool,
+    pub fail_stop_read: AtomicBool,
 }
 
 impl Persistence for Memory {
     fn load(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        if key == "sharing-stop" && self.fail_stop_read.load(Ordering::SeqCst) {
+            return Err(Error::Storage);
+        }
         Ok(self
             .values
             .lock()

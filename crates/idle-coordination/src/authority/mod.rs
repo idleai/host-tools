@@ -9,7 +9,13 @@ mod recovery;
 mod state;
 mod validation;
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
 
 use idle_protocol::v1::{
     ApiVersion,
@@ -20,7 +26,11 @@ use idle_protocol::v1::{
     workspace::Workspace,
 };
 
-use crate::{Error, Result, clock::Clock, persistence::Persistence};
+use crate::{
+    Error, Result,
+    clock::Clock,
+    persistence::{MAX_STATE_BYTES, Persistence},
+};
 
 use self::{
     state::{MAX_DEADLINE_MS, MAX_RECEIPTS, STATE_KEY, State, StoredResult},
@@ -51,6 +61,7 @@ pub struct Bootstrap {
 pub struct Authority {
     storage: Arc<dyn Persistence>,
     clock: Arc<dyn Clock>,
+    observed_time: AtomicU64,
     state: State,
     persisted: Vec<u8>,
     presence: BTreeMap<String, Presence>,
@@ -94,6 +105,7 @@ impl Authority {
         Ok(Self {
             storage,
             clock,
+            observed_time: AtomicU64::new(state.clock_floor),
             state,
             persisted,
             presence: BTreeMap::new(),
@@ -190,7 +202,11 @@ impl Authority {
             request,
             result: result.clone(),
         });
-        self.commit(next)?;
+        let bytes = serde_json::to_vec(&next)?;
+        if bytes.len() > MAX_STATE_BYTES {
+            return Ok(ApiResult::Failure(failure(ErrorCode::RateLimited)));
+        }
+        self.commit_serialized(next, bytes)?;
         Ok(result)
     }
 
@@ -226,11 +242,20 @@ impl Authority {
     }
 
     fn now(&self) -> Result<u64> {
-        Ok(self.clock.now_ms()?.max(self.state.clock_floor))
+        let now = self.clock.now_ms()?;
+        Ok(self.observed_time.fetch_max(now, Ordering::SeqCst).max(now))
     }
 
-    fn commit(&mut self, next: State) -> Result<()> {
+    fn commit(&mut self, mut next: State) -> Result<()> {
+        next.clock_floor = self.now()?;
         let bytes = serde_json::to_vec(&next)?;
+        if bytes.len() > MAX_STATE_BYTES {
+            return Err(Error::Busy);
+        }
+        self.commit_serialized(next, bytes)
+    }
+
+    fn commit_serialized(&mut self, next: State, bytes: Vec<u8>) -> Result<()> {
         if let Err(error) =
             self.storage
                 .compare_exchange(STATE_KEY, Some(&self.persisted), Some(&bytes))
