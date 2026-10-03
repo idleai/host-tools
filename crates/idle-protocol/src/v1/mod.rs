@@ -5,6 +5,7 @@
 //! clients must not advance a recovery cursor past an undecodable event.
 
 pub mod api;
+pub mod configuration;
 pub mod control;
 pub mod events;
 pub mod grants;
@@ -13,6 +14,7 @@ pub mod membership;
 pub mod projections;
 pub mod resources;
 pub mod sessions;
+pub mod standalone;
 pub mod workspace;
 
 use serde::{Deserialize, Serialize};
