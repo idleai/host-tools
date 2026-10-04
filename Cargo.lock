@@ -2170,12 +2170,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "idle-editor-capture"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "editchain-core",
+ "editchain-git",
+ "editchain-store",
+ "idle-history",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "idle-history"
 version = "0.1.0"
 dependencies = [
  "editchain-core",
  "facet",
+ "idle-protocol",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2211,6 +2227,22 @@ dependencies = [
  "tempfile",
  "time",
  "tokio",
+]
+
+[[package]]
+name = "idle-history-native"
+version = "0.1.0"
+dependencies = [
+ "editchain-core",
+ "editchain-engine",
+ "idle-editor-capture",
+ "idle-history",
+ "idle-history-import",
+ "idle-protocol",
+ "idle-repository",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

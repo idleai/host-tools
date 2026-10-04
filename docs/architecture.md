@@ -32,9 +32,18 @@ Native packages depend on these contracts and EditChain. EditChain knows only
 its own schema, storage, indexes, queries, replication and tooling. It has no
 application or host-tools dependency.
 
-VS Code owns editor observation capture, its platform event adapter, webviews,
-credential storage, trust checks and native editor actions. Its recorded editor
-schema and IDs remain unchanged. Another editor supplies its own observations
+`idle-editor-capture` owns the shared editor wire contract, validation, schema
+conversion and durable writer. `idle-history-native` owns native history reads,
+exact content previews and author/exposure projections. Both services build
+without app-core or VS Code. `idle-history` provides their portable request and
+result contracts; app-core retains Crux operations, application result adapters
+and peer-awareness view state.
+
+VS Code owns editor event observation, webviews, credential storage, trust checks
+and native editor actions. Its only Rust crate is `idle-vscode-webview`, which
+mounts app-core/web-ui and implements their webview bridge. Its TypeScript host
+calls and packages the shared native services directly. Recorded editor schema
+and IDs remain unchanged. Another editor supplies its own observations
 and recorder identity. A management TUI can read history and issue commands
 without an editor recorder.
 
@@ -43,9 +52,10 @@ framed service. Hosts inject authentication, credentials, persistence and relay
 transport. The production relay adapter uses Microsoft's Rust Dev Tunnels SDK
 for management, host and client connections. Peer-v5 authentication, inventory
 and replication remain in EditChain; lifecycle state comes from `idle-history`.
-The existing TypeScript coordinator remains available for current hosts and is
-tested against the Rust coordinator. Native consumers require neither Node nor
-app-core. See [native coordination](coordination.md) for ownership and upgrades.
+The earlier TypeScript coordinator is retained for compatibility consumers and
+older-peer interoperability checks. Current VS Code sharing uses the Rust service.
+Native consumers require neither Node nor app-core. See
+[native coordination](coordination.md) for ownership and upgrades.
 
 One authority serializes repository metadata, independent resource grants and
 controller leases. History replicas do not elect competing metadata authorities.

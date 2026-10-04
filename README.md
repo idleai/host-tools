@@ -8,7 +8,9 @@ workspace has no dependency on app-core, a renderer or the VS Code API.
 | --- | --- | --- |
 | `idle-protocol` | Versioned requests, responses, events and JSON Schema shared by clients, Evo and managed/standalone services. | Native and WASM |
 | `idle-coordination` | Repository metadata, settings/rules, views, presence, grants, controller ownership and native peer coordination. Library and framed service. | Native |
-| `idle-history` | Portable history/source contracts, display classifications and pure peer/query helpers. | Native and WASM |
+| `idle-history` | Portable history queries/results, repository bindings, projection inputs, source contracts and pure peer helpers. | Native and WASM |
+| `idle-editor-capture` | Editor observation validation, conversion, archive replay and durable writer; `idle-editor-service` executable. | Native |
+| `idle-history-native` | Shared history queries, exact record/file/diff reads and author/exposure projections; `idle-history-service` executable. | Native |
 | `idle-peer-state` | WASM bindings for the shared peer connection helpers. | Native build and WASM |
 | `idle-history-import` | Claude, Codex and human archive import, schema conversion and source reconciliation. | Native |
 | `idle-history-collector` | Automatic source discovery, durable collection, Git reconciliation and change notifications. Library, framed service and standalone watch executable. | Native |
@@ -80,3 +82,15 @@ coordination and native/TUI applications retain their separate feature work.
 The [standalone repository reader](docs/repository.md) supplies Git/GitHub data,
 exact projection sources and recorded-session discovery through a native library
 and framed service. It has no app-core or renderer dependency.
+
+Editor capture and history services build independently of app-core and VS Code:
+
+```sh
+cargo build --locked -p idle-editor-capture -p idle-history-native --bins
+```
+
+`idle-history-native` supports `default-features = false` for applications that
+only need its query/projection library. The default `service` feature adds the
+editor activity, content-preview and repository service endpoints. Applications
+keep their effect/result adapters; the extension packages these binaries and
+provides the editor UI.
