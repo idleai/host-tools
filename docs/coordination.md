@@ -33,8 +33,8 @@ Membership permits metadata participation; host execution, session input and
 provider use require separate grants. Revoking membership overrides those grants.
 Snapshots filter resources for the current contributor. Recovery keeps 256
 ordered invalidations; membership/grant changes or missing history require a new
-snapshot. Presence is attributed to the authenticated contributor, limited to the
-repository and visible hosts, and expires within 120 seconds.
+snapshot. Peer activity is attributed to the authenticated contributor, limited
+to the repository and visible hosts, and expires within 120 seconds.
 
 Controller leases check the authenticated runtime, host, Control session and
 grants. Epochs increase durably; leases last at most 60 seconds. Validation time

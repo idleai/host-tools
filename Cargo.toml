@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "crates/idle-coordination",
+    "crates/idle-editor-capture",
+    "crates/idle-history-native",
     "crates/idle-history",
     "crates/idle-history-collector",
     "crates/idle-history-import",

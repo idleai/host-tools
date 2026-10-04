@@ -33,7 +33,8 @@ pub struct ViewDefinition {
     pub json: String,
 }
 
-/// Authenticated connection presence; timestamps express freshness, never order.
+/// Online status and active file/branch for an authenticated connection.
+/// Timestamps express freshness, never order.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Presence {
@@ -218,7 +219,7 @@ pub enum RepositoryMessage {
     Snapshot(RepositorySnapshot),
     /// Ordered invalidations or an explicit reset.
     Recovery(RepositoryRecovery),
-    /// Transient authenticated presence.
+    /// Transient authenticated peer activity.
     Presence(Presence),
     /// Current independently scoped access check.
     Access(AccessCheck),

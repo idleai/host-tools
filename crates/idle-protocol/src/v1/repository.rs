@@ -1,6 +1,6 @@
 //! Repository facts and recorded sessions, independent of a live agent runtime.
 //!
-//! Git and GitHub identities never imply Idle membership, permission or presence.
+//! Git and GitHub identities never imply Idle membership, permission or online status.
 //! Counts and wall times are bounded JSON integers; full history identities remain
 //! strings. Each read replaces the previous snapshot within exactly one binding.
 

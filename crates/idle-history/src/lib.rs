@@ -2,8 +2,11 @@
 //! Crux owns application state; import adapters and native hosts reuse these
 //! types without depending on the UI runtime.
 
+pub mod binding;
 pub mod connection;
 mod presentation;
+pub mod projections;
+pub mod query;
 pub mod reconciliation;
 pub mod requests;
 mod selection;

@@ -9,6 +9,8 @@ description = "Portable semantic history identity and presentation contracts"
 repository = "https://github.com/idleai/host-tools"
 
 [dependencies]
+idle-protocol = { path = "../idle-protocol" }
+serde_json = "=1.0.151"
 editchain-core = { path = "../../../editchain/crates/editchain-core" }
 serde = { version = "1", features = ["derive"] }
 facet = "=0.46.5"

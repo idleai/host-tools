@@ -8,8 +8,8 @@ use crate::{Error, Result};
 use super::{Authority, Principal, mutation::repository_id};
 
 impl Authority {
-    /// Publish bounded, expiring presence for the authenticated connection.
-    /// Presence is intentionally absent after service restart.
+    /// Publish bounded, expiring peer activity for the authenticated connection.
+    /// Peer activity is intentionally absent after service restart.
     ///
     /// # Errors
     /// Rejects another contributor/repository, hidden hosts, stale times or paths.
@@ -69,7 +69,7 @@ impl Authority {
         Ok(())
     }
 
-    /// Remove only presence owned by this authenticated contributor.
+    /// Remove only peer activity owned by this authenticated contributor.
     ///
     /// # Errors
     /// Rejects removal of another contributor's connection.
@@ -86,7 +86,7 @@ impl Authority {
         Ok(())
     }
 
-    /// Return fresh, authorized presence without exposing hidden host bindings.
+    /// Return fresh, authorized peer activity without exposing hidden host bindings.
     ///
     /// # Errors
     /// Rejects revoked audience membership or unavailable service state.

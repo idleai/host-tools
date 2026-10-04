@@ -22,6 +22,10 @@ copy, comments, and new names. Use concrete terms suited to the context:
 "records", "recorded data", "details", "results", "source", "origin", "author",
 or "history".
 
+Do not use "presence" as a standalone term in responses, documentation, UI copy,
+comments, or new names. Name the concrete concept: "peer activity", "member
+connection status", "active file and branch", or "session/host join options".
+
 Use the original spelling only when an existing identifier, schema field,
 API, feature name, or exact quotation requires it. Do not rename established
 interfaces solely to follow this wording rule.

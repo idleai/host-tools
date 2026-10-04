@@ -1,0 +1,24 @@
+[package]
+name = "idle-editor-capture"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+publish = false
+description = "Reusable editor observation conversion and durable capture"
+repository = "https://github.com/idleai/host-tools"
+
+[dependencies]
+idle-history = { path = "../idle-history" }
+editchain-core = { path = "../../../editchain/crates/editchain-core" }
+editchain-store = { path = "../../../editchain/crates/editchain-store" }
+editchain-git = { path = "../../../editchain/crates/editchain-git" }
+blake3 = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "=1.0.151", features = ["raw_value"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

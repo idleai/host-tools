@@ -1067,8 +1067,8 @@ pub fn subagent_activity_summary(payload: &Value) -> Option<String> {
 /// `collaboration.list_agents` tool output: a JSON-encoded string such as
 /// `{"agents":[{"agent_name":"/root/x","agent_status":{"completed":"..."}}]}`.
 /// This extracts the `agent_name` of every agent whose `agent_status` object
-/// carries a `completed` key (presence is the explicit completion signal; the
-/// value is the provider's message and is deliberately ignored here).
+/// carries a `completed` key. That key explicitly signals completion; its value
+/// is the provider's message and is deliberately ignored here.
 ///
 /// The output may arrive as a plain JSON string (`Value::String`), as the raw
 /// text, or as an array of content items each carrying a `text`/`output`

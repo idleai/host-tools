@@ -1,0 +1,38 @@
+[package]
+name = "idle-history-native"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+publish = false
+description = "Shared native history queries, exact content reads and activity projections"
+repository = "https://github.com/idleai/host-tools"
+
+[features]
+default = ["service"]
+service = ["dep:idle-editor-capture", "dep:idle-repository", "dep:serde"]
+
+[dependencies]
+editchain-core = { path = "../../../editchain/crates/editchain-core" }
+idle-editor-capture = { path = "../idle-editor-capture", version = "0.1.0", optional = true }
+idle-history = { path = "../idle-history", version = "0.1.0" }
+idle-protocol = { path = "../idle-protocol", version = "0.1.0" }
+idle-repository = { path = "../idle-repository", version = "0.1.0", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = "=1.0.151"
+editchain-engine = { path = "../../../editchain/crates/editchain-engine" }
+
+[dev-dependencies]
+tempfile = "3"
+idle-history-import = { path = "../idle-history-import" }
+
+[[bin]]
+name = "idle-history-service"
+required-features = ["service"]
+
+[[example]]
+name = "history-fixture"
+required-features = ["service"]
+
+[lints]
+workspace = true

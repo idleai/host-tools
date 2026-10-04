@@ -20,7 +20,7 @@
       "$ref": "#/$defs/RepositoryRecovery"
     },
     {
-      "description": "Transient authenticated presence.",
+      "description": "Transient authenticated peer activity.",
       "$ref": "#/$defs/Presence"
     },
     {
@@ -1562,7 +1562,7 @@
       ]
     },
     "Presence": {
-      "description": "Authenticated connection presence; timestamps express freshness, never order.",
+      "description": "Online status and active file/branch for an authenticated connection.\nTimestamps express freshness, never order.",
       "type": "object",
       "properties": {
         "branch": {

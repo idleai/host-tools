@@ -63,11 +63,11 @@ pub enum Command {
     CheckAccess(AccessCheck),
     /// Revalidate an exact controller fence for the authenticated runtime.
     ValidateControl(ControlFence),
-    /// Read fresh presence.
+    /// Read fresh peer activity.
     Presence,
-    /// Publish presence for this connected contributor.
+    /// Publish peer activity for this connected contributor.
     PublishPresence(Presence),
-    /// Remove this contributor's presence by connection ID.
+    /// Remove this contributor's peer activity by connection ID.
     RemovePresence(String),
     /// Read peer connection state without credentials.
     SharingStatus,
