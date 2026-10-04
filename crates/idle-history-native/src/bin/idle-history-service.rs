@@ -1,5 +1,7 @@
 //! Exact native history documents over the extension host's framed transport.
 
+use idle_host_io as _;
+
 use std::io;
 
 use idle_history_native::history::service;

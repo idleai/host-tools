@@ -1,0 +1,23 @@
+[package]
+name = "idle-host-io"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+description = "Bounded little-endian framing for native host services"
+repository = "https://github.com/idleai/host-tools"
+readme = "../../README.md"
+keywords = ["idle", "stdio", "framing"]
+categories = ["development-tools"]
+
+[features]
+async = ["dep:tokio"]
+
+[dependencies]
+tokio = { version = "1", features = ["io-util"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["io-util", "macros", "rt"] }
+
+[lints]
+workspace = true

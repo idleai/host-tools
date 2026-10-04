@@ -13,6 +13,7 @@ categories = ["development-tools"]
 workspace = true
 
 [dependencies]
+idle-editor-capture = { path = "../idle-editor-capture" }
 idle-history = { path = "../idle-history" }
 editchain-store = { path = "../../../editchain/crates/editchain-store" }
 serde = { version = "1", features = ["derive"] }

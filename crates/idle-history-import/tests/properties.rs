@@ -8,6 +8,7 @@ use blake3 as _;
 use editchain_core as _;
 use editchain_engine as _;
 use editchain_store as _;
+use idle_editor_capture as _;
 use idle_history as _;
 use serde as _;
 use serde_json as _;

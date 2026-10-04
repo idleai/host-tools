@@ -31,15 +31,33 @@ fn oversized_originals_have_the_same_preview_and_durable_activities() {
             args.extend(["--glob", "*.jsonl"]);
         }
         let report = result(&chain, &args, b"", 0);
-        assert_eq!(report.get("raw_ops"), Some(&json!(1)));
-        assert_eq!(report.get("normalized_ops"), Some(&json!(2)));
+        // Preserve the archive envelope and exact live event as separate Originals.
+        assert_eq!(report.get("raw_ops"), Some(&json!(2)));
+        assert_eq!(report.get("normalized_ops"), Some(&json!(4)));
+        let originals = result(&chain, &["history", "--kind", "Original"], b"", 0);
+        let providers: std::collections::BTreeSet<_> = originals
+            .get("items")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|item| {
+                item.pointer("/operation/kind/Original/provider")
+                    .and_then(serde_json::Value::as_str)
+            })
+            .collect();
+        assert_eq!(providers, ["human", "vscode.editor"].into_iter().collect());
         let files = result(&chain, &["history", "--kind", "File"], b"", 0);
         assert_eq!(files.get("items").unwrap().as_array().unwrap().len(), 1);
         let links = result(&chain, &["history", "--kind", "Link"], b"", 0);
-        assert_eq!(links.get("items").unwrap().as_array().unwrap().len(), 1);
-        assert_eq!(
-            links.pointer("/items/0/operation/kind/Link/relation"),
-            Some(&json!("OccurrenceOf"))
+        let links = links.get("items").unwrap().as_array().unwrap();
+        assert_eq!(links.len(), 2);
+        assert!(
+            links
+                .iter()
+                .all(|item| item.pointer("/operation/kind/Link/relation")
+                    == Some(&json!("OccurrenceOf"))),
+            "both archive mappings remain explicit"
         );
         let dry = temp
             .path()

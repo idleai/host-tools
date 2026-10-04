@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: idleai/editchain
-          ref: 45b94c95a2cb185a59e58cf0763f589c666ab1e6
+          ref: 25d2494549cee57717280756d26688704912e5c0
           path: editchain
           persist-credentials: false
       - uses: actions/checkout@v4

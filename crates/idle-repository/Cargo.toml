@@ -11,6 +11,7 @@ keywords = ["git", "github", "idle"]
 categories = ["development-tools"]
 
 [dependencies]
+idle-host-io = { path = "../idle-host-io", features = ["async"] }
 idle-protocol = { path = "../idle-protocol" }
 editchain-core = { path = "../../../editchain/crates/editchain-core" }
 editchain-engine = { path = "../../../editchain/crates/editchain-engine" }

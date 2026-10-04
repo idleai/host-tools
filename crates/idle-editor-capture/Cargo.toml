@@ -9,6 +9,7 @@ description = "Reusable editor observation conversion and durable capture"
 repository = "https://github.com/idleai/host-tools"
 
 [dependencies]
+idle-host-io = { path = "../idle-host-io" }
 idle-history = { path = "../idle-history" }
 editchain-core = { path = "../../../editchain/crates/editchain-core" }
 editchain-store = { path = "../../../editchain/crates/editchain-store" }

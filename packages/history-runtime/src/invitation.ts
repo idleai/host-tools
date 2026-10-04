@@ -1,10 +1,8 @@
 import { X509Certificate } from 'node:crypto';
-import { Tunnel, TunnelAccessScopes, TunnelConnectionMode, TunnelProtocol, TunnelRelayTunnelEndpoint } from '@microsoft/dev-tunnels-contracts';
 import { TunnelAccessTokenProperties } from '@microsoft/dev-tunnels-management';
 import type { PublicDevice } from './native';
 import { ProbeError } from './errors';
 
-export const MULTIPLAYER_PORT = 43188;
 export const INVITE_LIMIT = 32 * 1024;
 export type JoinRequest = { version: 1; kind: 'request'; device: PublicDevice };
 export type RelayEndpoint = { tunnelId: string; clusterId: string; hostId: string; clientRelayUri: string; hostPublicKeys: string[] };
@@ -29,7 +27,7 @@ export function publicDevice(value: unknown): PublicDevice {
   try { new X509Certificate(Buffer.from(device.certificate, 'base64')); }
   catch { throw new ProbeError('Invalid device certificate.'); }
   // Rust recomputes the BLAKE3 fingerprint and verifies the certificate. The
-  // manager compares that result before any UI approval or connection attempt.
+  // coordinator compares that result before any approval or connection attempt.
   return { certificate: device.certificate, fingerprint: device.fingerprint };
 }
 
@@ -73,13 +71,4 @@ function validateInvitation(input: unknown, now: number, enrolled: boolean): Inv
   if (!expiration || expiration <= now || expiration < value.expiresAt!) throw new ProbeError('The invitation connect grant is expired or invalid.');
   return { version: 1, kind: 'invite', space: value.space, host: publicDevice(value.host), guest: value.guest,
     endpoint: validateEndpoint(value.endpoint), connectToken: value.connectToken, expiresAt: value.expiresAt! };
-}
-
-export function invitationTunnel(invitation: Invitation): Tunnel {
-  const { endpoint } = invitation;
-  const relay: TunnelRelayTunnelEndpoint = { connectionMode: TunnelConnectionMode.TunnelRelay,
-    hostId: endpoint.hostId, hostPublicKeys: endpoint.hostPublicKeys, clientRelayUri: endpoint.clientRelayUri };
-  return { tunnelId: endpoint.tunnelId, clusterId: endpoint.clusterId,
-    endpoints: [relay], ports: [{ portNumber: MULTIPLAYER_PORT, protocol: TunnelProtocol.Auto }],
-    accessTokens: { [TunnelAccessScopes.Connect]: invitation.connectToken } };
 }

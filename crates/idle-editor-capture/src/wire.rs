@@ -320,78 +320,84 @@ impl RecordEditorEvents {
     /// # Errors
     /// Returns the first malformed event.
     pub fn validate(&self) -> Result<(), &'static str> {
-        let invalid = |message| message;
         if self.events.is_empty() || self.events.len() > 128 {
-            return Err(invalid("editor batch must contain 1..128 events"));
+            return Err("editor batch must contain 1..128 events");
         }
         for event in &self.events {
-            if event.units.as_ref().is_some_and(|units| {
-                units.offsets != "utf16_code_units"
-                    || units.positions != "zero_based_line_utf16_column"
-                    || units.snapshots != "utf8_bytes"
-            }) {
-                return Err("unsupported editor coordinate units");
-            }
-            if event
-                .user_name
-                .as_deref()
-                .is_some_and(|name| !idle_history::human::valid_user_name(name))
-            {
-                return Err(invalid(
-                    "human user name must contain 1..80 characters without control characters or surrounding whitespace",
-                ));
-            }
-            if let Some(identity) = &event.identity {
-                let guid = identity.guid.as_bytes();
-                if guid.len() != 36
-                    || !guid.iter().enumerate().all(|(index, byte)| {
-                        if [8, 13, 18, 23].contains(&index) {
-                            *byte == b'-'
-                        } else {
-                            byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()
-                        }
-                    })
-                    || identity.stream.len() != 24
-                    || !identity
-                        .stream
-                        .bytes()
-                        .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
-                {
-                    return Err(invalid(
-                        "invalid unsigned human identity or workspace stream",
-                    ));
-                }
-            }
-            if event.schema != 1
-                || event.sequence == 0
-                || event.sequence > 9_007_199_254_740_991
-                || event.session.len() != 36
-                || !event
-                    .session
-                    .bytes()
-                    .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
-            {
-                return Err(invalid(
-                    "unsupported editor schema or invalid event identity",
-                ));
-            }
-            if (event.sequence == 1)
-                != matches!(event.event, EditorEventKind::TrackingStarted { .. })
-            {
-                return Err(invalid("editor stream must begin with tracking_started"));
-            }
-            event.validate_content().map_err(invalid)?;
-            if let EditorEventKind::HumanEdit { change, .. } = event.event
-                && (change == 0 || change >= event.sequence)
-            {
-                return Err(invalid("human edit must refer to an earlier observation"));
-            }
+            event.validate()?;
         }
         Ok(())
     }
 }
 
 impl EditorEvent {
+    /// Validate one observation's identity, bounds and exact UTF-16 replacements.
+    /// # Errors
+    /// Returns the first malformed field or inconsistent buffer change.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        let invalid = |message| message;
+        if self.units.as_ref().is_some_and(|units| {
+            units.offsets != "utf16_code_units"
+                || units.positions != "zero_based_line_utf16_column"
+                || units.snapshots != "utf8_bytes"
+        }) {
+            return Err("unsupported editor coordinate units");
+        }
+        if self
+            .user_name
+            .as_deref()
+            .is_some_and(|name| !idle_history::human::valid_user_name(name))
+        {
+            return Err(invalid(
+                "human user name must contain 1..80 characters without control characters or surrounding whitespace",
+            ));
+        }
+        if let Some(identity) = &self.identity {
+            let guid = identity.guid.as_bytes();
+            if guid.len() != 36
+                || !guid.iter().enumerate().all(|(index, byte)| {
+                    if [8, 13, 18, 23].contains(&index) {
+                        *byte == b'-'
+                    } else {
+                        byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()
+                    }
+                })
+                || identity.stream.len() != 24
+                || !identity
+                    .stream
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+            {
+                return Err(invalid(
+                    "invalid unsigned human identity or workspace stream",
+                ));
+            }
+        }
+        if self.schema != 1
+            || self.sequence == 0
+            || self.sequence > 9_007_199_254_740_991
+            || self.session.len() != 36
+            || !self
+                .session
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
+        {
+            return Err(invalid(
+                "unsupported editor schema or invalid event identity",
+            ));
+        }
+        if (self.sequence == 1) != matches!(self.event, EditorEventKind::TrackingStarted { .. }) {
+            return Err(invalid("editor stream must begin with tracking_started"));
+        }
+        self.validate_content().map_err(invalid)?;
+        if let EditorEventKind::HumanEdit { change, .. } = self.event
+            && (change == 0 || change >= self.sequence)
+        {
+            return Err(invalid("human edit must refer to an earlier observation"));
+        }
+        Ok(())
+    }
+
     fn validate_content(&self) -> Result<(), &'static str> {
         self.validate_document()?;
         if let EditorEventKind::CodeRead {

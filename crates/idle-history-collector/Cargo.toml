@@ -9,6 +9,7 @@ description = "Folder-bound source collection and history change notifications"
 repository = "https://github.com/idleai/host-tools"
 
 [dependencies]
+idle-host-io = { path = "../idle-host-io" }
 editchain-core = { path = "../../../editchain/crates/editchain-core" }
 editchain-engine = { path = "../../../editchain/crates/editchain-engine" }
 idle-history-import = { path = "../idle-history-import" }

@@ -31,30 +31,21 @@ impl fmt::Display for Failure {
 
 impl std::error::Error for Failure {}
 
+impl From<editchain_cli_support::error::Failure> for Failure {
+    fn from(error: editchain_cli_support::error::Failure) -> Self {
+        Self::new(error.code, error.message)
+    }
+}
+
 impl From<io::Error> for Failure {
     fn from(error: io::Error) -> Self {
-        let code = [
-            (io::ErrorKind::InvalidInput, 2),
-            (io::ErrorKind::NotFound, 3),
-            (io::ErrorKind::InvalidData, 4),
-            (io::ErrorKind::UnexpectedEof, 4),
-            (io::ErrorKind::WouldBlock, 5),
-            (io::ErrorKind::Interrupted, 130),
-        ]
-        .into_iter()
-        .find_map(|(kind, code)| (error.kind() == kind).then_some(code))
-        .unwrap_or(1);
-        Self::new(code, error.to_string())
+        editchain_cli_support::error::Failure::from(error).into()
     }
 }
 
 impl From<serde_json::Error> for Failure {
     fn from(error: serde_json::Error) -> Self {
-        if let Some(kind) = error.io_error_kind() {
-            io::Error::new(kind, error).into()
-        } else {
-            Self::input(error.to_string())
-        }
+        editchain_cli_support::error::Failure::from(error).into()
     }
 }
 

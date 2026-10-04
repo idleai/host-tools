@@ -78,6 +78,8 @@ pub(super) struct Args {
 struct Schema {
     #[arg(skip)]
     namespace: std::sync::OnceLock<bool>,
+    #[arg(skip)]
+    human_destination: std::sync::OnceLock<()>,
     /// Use the legacy operation schema and its existing cursor namespace.
     #[arg(long)]
     legacy: bool,
@@ -132,6 +134,16 @@ fn converted(
     if args.schema.legacy {
         Ok(batch)
     } else {
+        if !args.raw_only
+            && args.schema.human_destination.get().is_none()
+            && batch.operations().iter().any(|op| {
+                op.tags
+                    .matches_all(editchain_engine::Tags::IMPORT | editchain_engine::Tags::HUMAN)
+            })
+        {
+            idle_history_import::activity::validate_human_destination(chain)?;
+            let _set = args.schema.human_destination.set(());
+        }
         let migration = if let Some(mode) = args.schema.namespace.get() {
             *mode
         } else {
@@ -139,16 +151,13 @@ fn converted(
             let _set = args.schema.namespace.set(mode);
             mode
         };
-        let batch = if migration {
-            batch.into_migrated_schema3(blobs)?
+        if args.raw_only {
+            Ok(batch.into_originals_schema3(blobs, migration)?)
+        } else if migration {
+            Ok(batch.into_migrated_schema3(blobs)?)
         } else {
-            batch.into_schema3(blobs)?
-        };
-        Ok(if args.raw_only {
-            batch.originals_only()?
-        } else {
-            batch
-        })
+            Ok(batch.into_schema3(blobs)?)
+        }
     }
 }
 

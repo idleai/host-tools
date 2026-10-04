@@ -9,6 +9,7 @@ description = "Idle command-line source import and provider inspection"
 repository = "https://github.com/idleai/host-tools"
 
 [dependencies]
+editchain-cli-support = { path = "../../../editchain/crates/editchain-cli-support" }
 idle-history-import = { path = "../idle-history-import" }
 editchain-engine = { path = "../../../editchain/crates/editchain-engine" }
 editchain-git = { path = "../../../editchain/crates/editchain-git" }

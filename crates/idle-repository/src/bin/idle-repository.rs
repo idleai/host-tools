@@ -1,5 +1,7 @@
 //! Packaged standalone repository reader; credentials arrive only over framed stdin.
 
+use idle_host_io as _;
+
 use std::io;
 
 #[cfg(test)]

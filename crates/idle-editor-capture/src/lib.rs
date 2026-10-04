@@ -3,15 +3,21 @@
 //! The engine supplies immutable storage; this crate owns editor observation conversion.
 //! Raw observation schema 1 and operation schema 3 are independently versioned.
 
+use idle_host_io as _;
+
+mod blobs;
 mod context;
 mod convert;
 mod identity;
+mod replay;
 mod state;
 pub mod wire;
 mod writer;
 
+pub use blobs::CaptureBlobs;
 pub use context::observe_context;
 pub use identity::revision_id;
+pub use replay::EditorReplay;
 pub use writer::CaptureWriter;
 
 /// Capture errors include invalid input, unavailable history and storage errors.

@@ -704,6 +704,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
+name = "editchain-cli-support"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "editchain-core"
 version = "0.1.0"
 dependencies = [
@@ -2178,6 +2187,7 @@ dependencies = [
  "editchain-git",
  "editchain-store",
  "idle-history",
+ "idle-host-io",
  "serde",
  "serde_json",
  "tempfile",
@@ -2205,6 +2215,7 @@ dependencies = [
  "editchain-git",
  "editchain-store",
  "idle-history-import",
+ "idle-host-io",
  "serde",
  "serde_json",
  "tempfile",
@@ -2218,6 +2229,7 @@ dependencies = [
  "editchain-core",
  "editchain-engine",
  "editchain-store",
+ "idle-editor-capture",
  "idle-history",
  "process-wrap",
  "proptest",
@@ -2238,6 +2250,7 @@ dependencies = [
  "idle-editor-capture",
  "idle-history",
  "idle-history-import",
+ "idle-host-io",
  "idle-protocol",
  "idle-repository",
  "serde",
@@ -2251,6 +2264,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "ctrlc",
+ "editchain-cli-support",
  "editchain-engine",
  "editchain-git",
  "editchain-store",
@@ -2262,12 +2276,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "idle-peer-state"
+name = "idle-host-io"
 version = "0.1.0"
 dependencies = [
- "idle-history",
- "serde_json",
- "wasm-bindgen",
+ "tokio",
 ]
 
 [[package]]
@@ -2287,6 +2299,7 @@ dependencies = [
  "blake3",
  "editchain-core",
  "editchain-engine",
+ "idle-host-io",
  "idle-protocol",
  "reqwest",
  "serde",

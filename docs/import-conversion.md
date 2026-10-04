@@ -24,6 +24,27 @@ projection as older records. Buffered import storage supports reading captured
 source blobs before conversion; unreadable source blobs fail the import before
 cursor acceptance.
 
+Human archive activity uses the same editor converter as live capture. The
+archive envelope remains an Original at its existing address, with an explicit
+link to the exact enclosed editor event. The event, author, session, revision,
+edit and reading records use the live recorder's identities and conversion
+rules. Replaying an archive alongside live capture therefore adds no second
+copy of those activities. Accepted source prefixes supply revision context for
+resumed imports; unknown event shapes retain their original bytes.
+Conversion requires the stream's recorded baselines. Import the whole archive
+directory when one stream spans multiple files; raw-only capture can retain
+incomplete streams for later conversion.
+
+Earlier schema-three human archive conversions used separate activity identities
+and different edit rules. Those chains remain readable, but the CLI rejects new
+human activity conversion into them. Other provider imports and raw-only archive
+capture keep their existing behavior. Library callers check
+`activity::validate_human_destination` before converting human archives into an
+existing chain. Replay the original archives into a new destination before
+combining them with live capture. Existing records are never rewritten under
+their old identities. Raw-only import retains archive bytes without requiring
+an interpretable editor stream or a captured baseline.
+
 `--legacy` selects the previous capture schema and cursors. `--raw-only` retains
 Original records only and uses separate cursors, allowing later normalization to
 backfill activities. These options do not rewrite existing chains.

@@ -12,6 +12,7 @@
 mod common;
 
 use editchain_store as _;
+use idle_editor_capture as _;
 use idle_history as _;
 use std::path::{Path, PathBuf};
 

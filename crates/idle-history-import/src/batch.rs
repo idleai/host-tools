@@ -101,7 +101,7 @@ impl ImportBatch {
     /// # Errors
     /// Returns conversion, validation, or batch-limit errors.
     pub fn into_schema3(mut self, blobs: &mut dyn crate::BlobSink) -> Result<Self, ImportError> {
-        self = self.convert_schema3(blobs, false)?;
+        self = self.convert_schema3(blobs, crate::activity::Converter::default())?;
         Ok(self)
     }
 
@@ -112,7 +112,20 @@ impl ImportBatch {
         self,
         blobs: &mut dyn crate::BlobSink,
     ) -> Result<Self, ImportError> {
-        self.convert_schema3(blobs, true)
+        self.convert_schema3(blobs, crate::activity::Converter::for_migration())
+    }
+
+    /// Convert only original source records without interpreting editor activity.
+    /// This permits raw capture of partial or unsupported editor streams.
+    /// # Errors
+    /// Returns source storage, conversion or batch-limit errors.
+    pub fn into_originals_schema3(
+        self,
+        blobs: &mut dyn crate::BlobSink,
+        migration: bool,
+    ) -> Result<Self, ImportError> {
+        self.convert_schema3(blobs, crate::activity::Converter::for_originals(migration))?
+            .originals_only()
     }
 
     /// Retain only exact source records from an already converted private batch.
@@ -135,13 +148,8 @@ impl ImportBatch {
     fn convert_schema3(
         mut self,
         blobs: &mut dyn crate::BlobSink,
-        migration: bool,
+        mut converter: crate::activity::Converter,
     ) -> Result<Self, ImportError> {
-        let mut converter = if migration {
-            crate::activity::Converter::for_migration()
-        } else {
-            crate::activity::Converter::default()
-        };
         converter.protect_conflicts(crate::activity::conflicts(
             self.ops.source_context.values().chain(&self.ops.ops),
         )?);
@@ -154,7 +162,7 @@ impl ImportBatch {
                     "schema-three capture requires readable source blobs; source checkpoints were not advanced".into(),
                 ));
             }
-            converter.observe(op, stored.as_deref())?;
+            converter.observe(op, stored.as_deref(), blobs)?;
         }
         converter.finish_observations();
         let mut records = Vec::new();

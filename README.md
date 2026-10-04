@@ -11,11 +11,11 @@ workspace has no dependency on app-core, a renderer or the VS Code API.
 | `idle-history` | Portable history queries/results, repository bindings, projection inputs, source contracts and pure peer helpers. | Native and WASM |
 | `idle-editor-capture` | Editor observation validation, conversion, archive replay and durable writer; `idle-editor-service` executable. | Native |
 | `idle-history-native` | Shared history queries, exact record/file/diff reads and author/exposure projections; `idle-history-service` executable. | Native |
-| `idle-peer-state` | WASM bindings for the shared peer connection helpers. | Native build and WASM |
 | `idle-history-import` | Claude, Codex and human archive import, schema conversion and source reconciliation. | Native |
 | `idle-history-collector` | Automatic source discovery, durable collection, Git reconciliation and change notifications. Library, framed service and standalone watch executable. | Native |
 | `idle-history-tools` | Import, conversion and source-inspection commands. | Native |
-| `packages/history-runtime` | Earlier TypeScript coordinator retained for compatibility consumers and native wire-interoperability tests. VS Code sharing uses `idle-coordination`. | Node |
+| `idle-host-io` | Shared bounded little-endian framing for capture, collection, repository and history services. | Native |
+| `packages/history-runtime` | TypeScript native peer bridge and invitation support for wire-interoperability tests. VS Code sharing uses `idle-coordination`. | Node |
 
 EditChain supplies its engine through the sibling `../editchain` checkout.
 Codex import runs an explicit `codex-session-exporter` executable. That exporter
@@ -34,7 +34,7 @@ npm --prefix packages/history-runtime ci
 ./scripts/check.sh
 ```
 
-The lint suite checks all native packages and explicitly checks the three
+The lint suite checks all native packages and explicitly checks the two
 portable packages on WASM. It retains import fixtures, schema drift checks,
 durable recovery tests and Rust/Clippy/Rustdoc/dependency checks.
 It also tests two native peers, interoperability with the existing TypeScript
@@ -53,7 +53,7 @@ target/debug/idle-coordination --config /absolute/path/service.json
 The executable serves framed JSON on stdin/stdout. See the
 [configuration and API guide](docs/coordination.md) before starting it.
 
-The full check also builds the portable peer coordinator and runs a standalone
+The full check also builds the native peer coordinator and runs a standalone
 collection process with the real exporter. By default it builds the exporter
 from the sibling Codex checkout. Set `IDLE_CODEX_EXPORTER` to an installed absolute
 executable path to use that binary instead. The check always runs the same
