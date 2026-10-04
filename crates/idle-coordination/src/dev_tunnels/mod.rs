@@ -203,7 +203,14 @@ impl DevTunnels {
         let entries = self.journal.entries()?;
         let mut incomplete = false;
         for entry in entries {
-            if retained.is_some_and(|lease| entry.lease.as_ref() == Some(lease)) {
+            if let Some(lease) = retained.filter(|lease| lease.marker == entry.marker) {
+                if entry
+                    .lease
+                    .as_ref()
+                    .is_some_and(|recorded| recorded != lease)
+                {
+                    return Err(Error::Conflict);
+                }
                 continue;
             }
             if let Some(lease) = &entry.lease {
@@ -228,20 +235,13 @@ impl DevTunnels {
                     .map_err(safe_http)
             })
             .await?;
-            let mut found = false;
-            for tunnel in tunnels {
-                if !tunnel.labels.contains(&entry.marker) {
-                    return Err(Error::Forbidden);
-                }
-                let lease = HostLease {
-                    marker: entry.marker.clone(),
-                    tunnel_id: tunnel.tunnel_id.ok_or(Error::Invalid)?,
-                    cluster_id: tunnel.cluster_id.ok_or(Error::Invalid)?,
-                };
-                self.remove_owned(&lease, cancel).await?;
-                found = true;
+            let target = cleanup_target(&tunnels, &entry.marker)?;
+            if let Some(lease) = &target {
+                self.remove_owned(lease, cancel).await?;
             }
-            if found || self.clock.now_ms()? >= entry.created_at.saturating_add(172_800_000) {
+            if target.is_some()
+                || self.clock.now_ms()? >= entry.created_at.saturating_add(172_800_000)
+            {
                 self.journal.forget(&entry.marker)?;
             } else {
                 incomplete = true;
@@ -252,6 +252,25 @@ impl DevTunnels {
         } else {
             Ok(())
         }
+    }
+}
+
+fn cleanup_target(tunnels: &[Tunnel], marker: &str) -> Result<Option<HostLease>> {
+    match tunnels {
+        [] => Ok(None),
+        [tunnel] => {
+            if !tunnel.labels.iter().any(|label| label == marker) {
+                return Err(Error::Forbidden);
+            }
+            let lease = HostLease {
+                marker: marker.into(),
+                tunnel_id: tunnel.tunnel_id.clone().ok_or(Error::Invalid)?,
+                cluster_id: tunnel.cluster_id.clone().ok_or(Error::Invalid)?,
+            };
+            lease.validate()?;
+            Ok(Some(lease))
+        }
+        _ => Err(Error::Conflict),
     }
 }
 

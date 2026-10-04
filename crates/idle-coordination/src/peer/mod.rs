@@ -39,6 +39,8 @@ use self::{
 /// One shared connection's status, after native authentication/inventory checks.
 #[derive(Clone, Debug, Serialize)]
 pub struct PeerStatus {
+    /// Connection-local edge identity for progress observations across reconnects.
+    pub connection: Option<String>,
     /// Exact supplying device when known; independent of record authorship.
     pub fingerprint: Option<String>,
     /// Shared Rust connection lifecycle.
@@ -184,6 +186,79 @@ impl PeerCoordinator {
             }
         }
         Ok(coordinator)
+    }
+
+    /// Transfer an earlier host's saved session without selecting new consent.
+    /// A retry may acknowledge the same import, but never overwrite native state.
+    ///
+    /// # Errors
+    /// Rejects changed spaces, devices, approvals, stopped consent or conflicting state.
+    pub async fn import_saved(&mut self, saved: SavedSharing) -> Result<()> {
+        saved.validate()?;
+        let digest = blake3::hash(&serde_json::to_vec(&saved)?);
+        if let Some(imported) = self.shared.storage.load("sharing-import")? {
+            return if imported == digest.as_bytes() {
+                Ok(())
+            } else {
+                Err(Error::Conflict)
+            };
+        }
+        if self.shared.storage.load(STOP_KEY)?.is_some() {
+            return Err(Error::Forbidden);
+        }
+        let scope = self.shared.engine.scope().await?.ok_or(Error::Forbidden)?;
+        if !scope.active || scope.space != saved.space {
+            return Err(Error::Forbidden);
+        }
+        let approved = self.shared.engine.devices(&saved.space).await?;
+        for peer in &saved.peers {
+            if peer.version != 1
+                || peer.space != saved.space
+                || peer.guest != self.shared.identity.fingerprint
+                || !approved.contains(&peer.host)
+            {
+                return Err(Error::Forbidden);
+            }
+            peer.endpoint.validate()?;
+            let _expiration = crate::invitation::token_expiration(&peer.connect_token)?;
+        }
+        self.shared.access(|state| {
+            if let Some(previous) = &state.saved {
+                return if previous == &saved {
+                    Ok(())
+                } else {
+                    Err(Error::Conflict)
+                };
+            }
+            state.scope = Some(scope);
+            self.shared.persist(state, Some(saved))
+        })?;
+        self.shared
+            .storage
+            .compare_exchange("sharing-import", None, Some(digest.as_bytes()))
+    }
+
+    /// Retain imported cleanup markers before the old host erases its copy.
+    ///
+    /// # Errors
+    /// Rejects invalid markers or failed private journal writes.
+    pub fn import_cleanup(&self, markers: &[String]) -> Result<()> {
+        self.shared.relay.import_cleanup(markers)
+    }
+
+    /// Retry pending cleanup while preserving this coordinator's retained host.
+    ///
+    /// # Errors
+    /// Returns failed management or cleanup, retaining the journal for retry.
+    pub async fn cleanup(&self, cancel: &CancellationToken) -> Result<()> {
+        let retained = self
+            .shared
+            .access(|state| Ok(state.saved.as_ref().and_then(|saved| saved.host.clone())))?;
+        self.shared.relay.cleanup(retained.as_ref(), cancel).await
+    }
+
+    pub(crate) fn credentials(&self) -> Arc<dyn Credentials> {
+        self.shared.credentials.clone()
     }
 
     /// Subscribe to shared Rust status and native durable-change counters.

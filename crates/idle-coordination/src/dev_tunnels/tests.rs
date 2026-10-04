@@ -113,3 +113,67 @@ fn cleanup_requires_both_exact_resource_identity_and_owner_marker() {
         "a matching label cannot substitute for saved resource identity"
     );
 }
+
+#[tokio::test]
+async fn imported_marker_keeps_its_retained_host_without_requesting_credentials() {
+    use super::{DevTunnels, EnvironmentCredentials};
+    use crate::{clock::SystemClock, transport::RelayProvider as _};
+    let root = tempfile::tempdir().expect("private test directory");
+    let storage =
+        Arc::new(FilePersistence::open(root.path().join("state")).expect("private storage"));
+    let relay = DevTunnels::new(
+        Arc::new(EnvironmentCredentials {
+            variable: "UNUSED_IMPORTED_MARKER_TOKEN".into(),
+        }),
+        storage.clone(),
+        Arc::new(SystemClock),
+    )
+    .expect("SDK adapter");
+    let retained = lease();
+    relay
+        .import_cleanup(std::slice::from_ref(&retained.marker))
+        .expect("durable import");
+    relay
+        .cleanup(Some(&retained), &tokio_util::sync::CancellationToken::new())
+        .await
+        .expect("retained marker must be excluded before management access");
+    let entries = Journal::new(storage)
+        .entries()
+        .expect("journal remains durable");
+    assert_eq!(
+        entries.len(),
+        1,
+        "retained ownership must survive migration"
+    );
+    assert_eq!(
+        relay.import_cleanup(&["unrelated-marker".into()]),
+        Err(Error::Invalid),
+        "import cannot invent an owner label"
+    );
+}
+
+#[test]
+fn marker_only_cleanup_refuses_ambiguous_or_unrelated_resources() {
+    let lease = lease();
+    let tunnel = Tunnel {
+        tunnel_id: Some(lease.tunnel_id.clone()),
+        cluster_id: Some(lease.cluster_id.clone()),
+        labels: vec![lease.marker.clone()],
+        ..Tunnel::default()
+    };
+    assert_eq!(
+        super::cleanup_target(std::slice::from_ref(&tunnel), &lease.marker),
+        Ok(Some(lease.clone())),
+        "a single labeled resource can be reconciled"
+    );
+    assert_eq!(
+        super::cleanup_target(&[tunnel.clone(), tunnel], &lease.marker),
+        Err(Error::Conflict),
+        "ambiguous discovery must not delete any resource"
+    );
+    assert_eq!(
+        super::cleanup_target(&[Tunnel::default()], &lease.marker),
+        Err(Error::Forbidden),
+        "unrelated cloud results never authorize deletion"
+    );
+}

@@ -52,8 +52,9 @@ impl Runtime {
     pub(super) fn status(&self) -> SharingStatus {
         let mut peers: Vec<_> = self
             .edges
-            .values()
-            .map(|edge| PeerStatus {
+            .iter()
+            .map(|(id, edge)| PeerStatus {
+                connection: Some(id.to_string()),
                 fingerprint: edge.fingerprint.clone(),
                 state: edge.lifecycle.status(),
                 progress: edge.progress.clone(),
@@ -65,6 +66,7 @@ impl Runtime {
                 .any(|peer| peer.fingerprint.as_ref() == Some(fingerprint))
             {
                 peers.push(PeerStatus {
+                    connection: None,
                     fingerprint: Some(fingerprint.clone()),
                     state: lifecycle.status(),
                     progress: None,

@@ -7,7 +7,7 @@ use std::{
 
 use idle_coordination::{
     Error, Result,
-    service::{native::Configuration, serve},
+    service::{native::Configuration, serve_configuration},
 };
 use tokio_util::sync::CancellationToken;
 use {
@@ -60,9 +60,8 @@ async fn run(configuration: Configuration) -> Result<()> {
         shutdown_signal().await;
         interrupted.cancel();
     });
-    let mut service = configuration.open().await?;
-    let result = serve(
-        &mut service,
+    let result = serve_configuration(
+        configuration,
         tokio::io::stdin(),
         tokio::io::stdout(),
         &cancel,

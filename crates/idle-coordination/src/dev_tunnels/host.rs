@@ -45,6 +45,24 @@ impl std::fmt::Debug for SdkHost {
 
 #[async_trait]
 impl RelayProvider for DevTunnels {
+    fn import_cleanup(&self, markers: &[String]) -> Result<()> {
+        if markers.len() > 64
+            || markers
+                .iter()
+                .any(|marker| !crate::invitation::valid_marker(marker))
+        {
+            return Err(Error::Invalid);
+        }
+        for marker in markers {
+            self.journal.remember(&super::Entry {
+                marker: marker.clone(),
+                lease: None,
+                created_at: self.clock.now_ms()?,
+            })?;
+        }
+        Ok(())
+    }
+
     async fn host(
         &self,
         previous: Option<&HostLease>,

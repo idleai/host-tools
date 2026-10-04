@@ -118,6 +118,17 @@ pub trait RelayProvider: std::fmt::Debug + Send + Sync {
     /// # Errors
     /// Returns unavailable management or ownership mismatch.
     async fn remove(&self, lease: &HostLease, cancel: &CancellationToken) -> Result<()>;
+    /// Durably retain ownership markers transferred by the authenticated host.
+    ///
+    /// # Errors
+    /// Rejects unsupported transfers or invalid markers.
+    fn import_cleanup(&self, markers: &[String]) -> Result<()> {
+        if markers.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::Invalid)
+        }
+    }
     /// Retry previously journaled incomplete creates/deletes after service restart.
     ///
     /// # Errors
@@ -134,6 +145,13 @@ pub trait Credentials: std::fmt::Debug + Send + Sync {
     /// # Errors
     /// Returns authentication unavailability; never prompts from the library.
     async fn management(&self, cancel: &CancellationToken) -> Result<Secret>;
+    /// Fetch the separately approved repository discovery credential.
+    ///
+    /// # Errors
+    /// Returns authentication unavailability without prompting.
+    async fn discovery(&self, cancel: &CancellationToken) -> Result<Secret> {
+        self.management(cancel).await
+    }
     /// Renew only an existing peer grant via an authenticated approved source.
     /// `None` means a fresh invitation is required after expiry.
     ///

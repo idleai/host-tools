@@ -13,7 +13,7 @@ workspace has no dependency on app-core, a renderer or the VS Code API.
 | `idle-history-import` | Claude, Codex and human archive import, schema conversion and source reconciliation. | Native |
 | `idle-history-collector` | Automatic source discovery, durable collection, Git reconciliation and change notifications. Library, framed service and standalone watch executable. | Native |
 | `idle-history-tools` | Import, conversion and source-inspection commands. | Native |
-| `packages/history-runtime` | Portable TypeScript peer coordinator with host-supplied transports, credentials and connection state. | Node |
+| `packages/history-runtime` | Earlier TypeScript coordinator retained for compatibility consumers and native wire-interoperability tests. VS Code sharing uses `idle-coordination`. | Node |
 
 EditChain supplies its engine through the sibling `../editchain` checkout.
 Codex import runs an explicit `codex-session-exporter` executable. That exporter
