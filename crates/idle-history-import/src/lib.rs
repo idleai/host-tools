@@ -30,6 +30,8 @@ pub mod cursor;
 pub mod error;
 /// Discover once and capture individual files with stable provider-relative identities.
 pub mod files;
+#[cfg(feature = "fixtures")]
+pub mod fixtures;
 /// Typed provider observations for host-owned Git reconciliation.
 pub mod git_evidence;
 /// Exact human archive capture and native recorder identity mappings.

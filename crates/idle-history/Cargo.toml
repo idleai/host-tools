@@ -1,17 +1,20 @@
 [package]
+publish = ["idle-host-tools"]
 name = "idle-history"
-version = "0.1.0"
+version.workspace = true
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
-publish = false
 description = "Portable semantic history identity and presentation contracts"
 repository = "https://github.com/idleai/host-tools"
+readme = "../../README.md"
+keywords = ["idle", "history", "development"]
+categories = ["development-tools"]
 
 [dependencies]
-idle-protocol = { path = "../idle-protocol" }
+idle-protocol = { registry = "idle-host-tools", version = "0.1.0", path = "../idle-protocol" }
 serde_json = "=1.0.151"
-editchain-core = { path = "../../../editchain/crates/editchain-core" }
+editchain-core = { registry = "idle-editchain", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
 facet = "=0.46.5"
 

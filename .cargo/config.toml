@@ -1,0 +1,5 @@
+[registries.idle-editchain]
+index = "sparse+https://raw.githubusercontent.com/idleai/editchain/cargo-index/"
+
+[registries.idle-host-tools]
+index = "sparse+https://raw.githubusercontent.com/idleai/host-tools/cargo-index/"

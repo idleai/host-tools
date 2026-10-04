@@ -1,3 +1,7 @@
 /target/
 /dist/
 *.log
+
+/.artifacts/
+/releases/
+__pycache__/
