@@ -8,7 +8,7 @@ fn source_files_and_directories_use_shared_capture_without_viewer_checkpoints() 
     let source = sources.join("session.jsonl");
     std::fs::write(
         &source,
-        include_bytes!("../../../idle-history-import/tests/fixtures/human/session.jsonl"),
+        idle_history_import::fixtures::HUMAN_SESSION.as_bytes(),
     )
     .unwrap();
     let mut recorded = None;
@@ -53,7 +53,7 @@ fn source_files_and_directories_use_shared_capture_without_viewer_checkpoints() 
 fn shared_provider_imports_stdin_are_resumable_and_dry_run_is_read_only() {
     let temp = tempfile::tempdir().unwrap();
     let chain = temp.path().join("chain");
-    let fixture = include_bytes!("../../../idle-history-import/tests/fixtures/human/session.jsonl");
+    let fixture = idle_history_import::fixtures::HUMAN_SESSION.as_bytes();
     let args = [
         "import",
         "--provider",
@@ -74,7 +74,7 @@ fn shared_provider_imports_stdin_are_resumable_and_dry_run_is_read_only() {
     );
     let second = result(&chain, &args, fixture, 0);
     assert_eq!(second.get("written"), Some(&json!(0)));
-    let claude = include_bytes!("../../../idle-history-import/tests/fixtures/claude/session.jsonl");
+    let claude = idle_history_import::fixtures::CLAUDE_SESSION.as_bytes();
     let _claude = result(
         &chain,
         &[
@@ -98,7 +98,7 @@ fn shared_codex_import_uses_the_recorded_exporter_contract() {
     let projection = temp.path().join("projection.ndjson");
     std::fs::write(
         &projection,
-        include_bytes!("../../../idle-history-import/tests/fixtures/codex/projection.ndjson"),
+        idle_history_import::fixtures::CODEX_PROJECTION.as_bytes(),
     )
     .unwrap();
     let helper = temp.path().join("helper.sh");
@@ -124,7 +124,7 @@ fn shared_codex_import_uses_the_recorded_exporter_contract() {
     let first = result(
         &chain,
         &args,
-        include_bytes!("../../../idle-history-import/tests/fixtures/codex/rollout-contract.jsonl"),
+        idle_history_import::fixtures::CODEX_ROLLOUT.as_bytes(),
         3,
     );
     assert_eq!(first.get("raw_ops"), Some(&json!(7)));
@@ -132,7 +132,7 @@ fn shared_codex_import_uses_the_recorded_exporter_contract() {
     let repeated = result(
         &chain,
         &args,
-        include_bytes!("../../../idle-history-import/tests/fixtures/codex/rollout-contract.jsonl"),
+        idle_history_import::fixtures::CODEX_ROLLOUT.as_bytes(),
         0,
     );
     assert_eq!(repeated.get("written"), Some(&json!(0)));
@@ -160,7 +160,7 @@ fn shared_codex_import_uses_the_recorded_exporter_contract() {
     let _copied = result(
         &chain,
         &copied_args,
-        include_bytes!("../../../idle-history-import/tests/fixtures/codex/rollout-contract.jsonl"),
+        idle_history_import::fixtures::CODEX_ROLLOUT.as_bytes(),
         3,
     );
     let copied = result(&chain, &["import-state"], b"", 0);

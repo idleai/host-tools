@@ -58,7 +58,7 @@ check "cargo clippy" cargo clippy --workspace --all-targets --all-features --loc
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-check "engine integration tools" cargo build --manifest-path ../editchain/Cargo.toml --locked -p editchain --bin editchain -p editchain-sync --bin editchain-peer
+check "engine integration tools" python3 scripts/install-artifacts.py engine
 check "TypeScript interoperability tools" npm --prefix packages/history-runtime run build
 check "cargo test" cargo test --workspace --all-features --locked
 
@@ -74,8 +74,8 @@ check "cargo test (doc)" cargo test --workspace --all-features --doc --locked
 check "cargo doc" cargo doc --workspace --all-features --no-deps --locked
 
 # Browser libraries must satisfy the same policy on their actual compilation target.
-check "cargo check (wasm32)" cargo check -p idle-protocol -p idle-history -p idle-peer-state --lib --all-features --locked --target wasm32-unknown-unknown
-check "cargo clippy (wasm32)" cargo clippy -p idle-protocol -p idle-history -p idle-peer-state --lib --all-features --locked --target wasm32-unknown-unknown -- -D warnings
+check "cargo check (wasm32)" cargo check -p idle-protocol -p idle-history --lib --all-features --locked --target wasm32-unknown-unknown
+check "cargo clippy (wasm32)" cargo clippy -p idle-protocol -p idle-history --lib --all-features --locked --target wasm32-unknown-unknown -- -D warnings
 
 # ---------------------------------------------------------------------------
 # Dependency policy

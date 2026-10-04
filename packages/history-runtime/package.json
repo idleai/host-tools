@@ -2,7 +2,7 @@
   "name": "@idle/history-runtime",
   "version": "0.1.0",
   "private": true,
-  "description": "Portable history peer coordination with host-supplied transports and shared connection state",
+  "description": "Native peer bridge and invitation support for interoperability tests",
   "license": "MIT",
   "files": [
     "dist"
@@ -20,17 +20,16 @@
   "scripts": {
     "build": "tsc -p .",
     "test": "npm run build && node --test *.test.cjs",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "prebuild": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "typescript": "^5.4.0"
   },
   "dependencies": {
-    "@microsoft/dev-tunnels-contracts": "1.3.56",
     "@microsoft/dev-tunnels-management": "1.3.56",
-    "@microsoft/dev-tunnels-ssh": "3.12.42",
-    "node-rsa": "2.0.0"
+    "@microsoft/dev-tunnels-ssh": "3.12.42"
   },
   "repository": {
     "type": "git",

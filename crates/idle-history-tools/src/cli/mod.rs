@@ -58,7 +58,7 @@ pub(crate) fn run() -> ExitCode {
     }
     let mut output = Output::new(cli.output);
     let result = execute(cli, &options, &mut output);
-    match result.and(output.finish()) {
+    match result.and(output.finish().map_err(Into::into)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) if error.code == 0 => report(&Failure::new(
             1,
@@ -73,13 +73,17 @@ fn execute(cli: Cli, options: &ImportOptions, output: &mut Output) -> Result<()>
         Command::Import(args) => imports::run(&cli.chain, &args, options, output),
         Command::ImportState => {
             let queries = editchain_engine::queries::ChainQueries::open(&cli.chain)?;
-            output.emit(&ImportState::from_query(&queries)?)
+            output
+                .emit(&ImportState::from_query(&queries)?)
+                .map_err(Into::into)
         }
-        Command::Convert { destination } => output.emit(&idle_history_import::activity::migrate(
-            &cli.chain,
-            &destination,
-            || options.cancellation.is_cancelled(),
-        )?),
+        Command::Convert { destination } => output
+            .emit(&idle_history_import::activity::migrate(
+                &cli.chain,
+                &destination,
+                || options.cancellation.is_cancelled(),
+            )?)
+            .map_err(Into::into),
     }
 }
 

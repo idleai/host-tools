@@ -21,32 +21,17 @@ mod sources;
 fn engine_binary() -> &'static Path {
     static BINARY: OnceLock<PathBuf> = OnceLock::new();
     BINARY.get_or_init(|| {
-        let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../editchain/Cargo.toml");
-        let output = Command::new("cargo")
-            .args([
-                "metadata",
-                "--locked",
-                "--no-deps",
-                "--format-version",
-                "1",
-                "--manifest-path",
-            ])
-            .arg(manifest)
-            .output()
-            .expect("engine metadata");
-        assert!(output.status.success(), "engine metadata failed");
-        let metadata: Value = serde_json::from_slice(&output.stdout).expect("engine metadata JSON");
-        let binary = PathBuf::from(
-            metadata
-                .get("target_directory")
-                .and_then(Value::as_str)
-                .expect("target directory"),
-        )
-        .join("debug")
-        .join(format!("editchain{}", std::env::consts::EXE_SUFFIX));
+        let binary = std::env::var_os("IDLE_EDITCHAIN_BIN").map_or_else(
+            || {
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../.artifacts/engine/bin")
+                    .join(format!("editchain{}", std::env::consts::EXE_SUFFIX))
+            },
+            PathBuf::from,
+        );
         assert!(
             binary.is_file(),
-            "build the engine CLI before integration tests (scripts/lint.sh builds it)"
+            "install the engine release before integration tests (scripts/lint.sh installs it)"
         );
         binary
     })

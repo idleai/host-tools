@@ -72,6 +72,14 @@ pub(crate) fn emit_op(
 
 /// A sink for accepting large blob payloads.
 pub trait BlobSink {
+    /// Read exact captured content by its full address for shared editor conversion.
+    /// Write-only sinks may leave content unavailable.
+    /// # Errors
+    /// Returns backend access or content validation errors.
+    fn read_content(&self, _id: ContentId) -> Result<Option<Vec<u8>>, ImportError> {
+        Ok(None)
+    }
+
     /// Store a blob and return a content identifier.
     ///
     /// # Errors
@@ -415,6 +423,14 @@ impl MemoryBlobSink {
 }
 
 impl BlobSink for MemoryBlobSink {
+    fn read_content(&self, id: ContentId) -> Result<Option<Vec<u8>>, ImportError> {
+        Ok(self
+            .blobs
+            .iter()
+            .find(|bytes| ContentId::Hash256(hash_raw(bytes)) == id)
+            .cloned())
+    }
+
     fn read_blob(&self, reference: &BlobRef) -> Result<Option<Vec<u8>>, ImportError> {
         Ok(self
             .blobs
@@ -464,6 +480,13 @@ impl ContentAddressedBlobSink {
 }
 
 impl BlobSink for ContentAddressedBlobSink {
+    fn read_content(&self, id: ContentId) -> Result<Option<Vec<u8>>, ImportError> {
+        let ContentId::Hash256(hash) = id else {
+            return Ok(None);
+        };
+        Ok(self.get(&hash).map(<[u8]>::to_vec))
+    }
+
     fn read_blob(&self, reference: &BlobRef) -> Result<Option<Vec<u8>>, ImportError> {
         let ContentId::Hash256(hash) = reference.id else {
             return Ok(None);
@@ -533,6 +556,17 @@ impl CursorStore for MemoryCursorStore {
 pub use editchain_store::BlobStore as FsBlobSink;
 
 impl BlobSink for FsBlobSink {
+    fn read_content(&self, id: ContentId) -> Result<Option<Vec<u8>>, ImportError> {
+        match editchain_store::BlobSource::read_content(self, id)? {
+            editchain_store::BlobResolution::Found(bytes) => Ok(Some(bytes)),
+            editchain_store::BlobResolution::Missing
+            | editchain_store::BlobResolution::Unresolvable => Ok(None),
+            editchain_store::BlobResolution::Corrupt => Err(ImportError::BlobSink(
+                "source content does not match its address".into(),
+            )),
+        }
+    }
+
     fn read_blob(&self, reference: &BlobRef) -> Result<Option<Vec<u8>>, ImportError> {
         let ContentId::Hash256(hash) = reference.id else {
             return Ok(None);

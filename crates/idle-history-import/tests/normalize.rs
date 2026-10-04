@@ -3,6 +3,7 @@
 use blake3 as _;
 use editchain_engine as _;
 use editchain_store as _;
+use idle_editor_capture as _;
 use idle_history as _;
 use process_wrap as _;
 use proptest as _;

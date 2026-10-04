@@ -7,7 +7,7 @@ mod calls;
 mod human;
 mod migration;
 mod source;
-pub use migration::{migrate, uses_migration_ids};
+pub use migration::{migrate, uses_migration_ids, validate_human_destination};
 
 use editchain_core::activity::{upgrade_id, ItemId, Kind, Operation, OriginalRef};
 use editchain_core::{NoteRelationship, Op, OpId, OpKind, Payload, ScopeRef};
@@ -24,6 +24,7 @@ pub const CONTRACT: &str = "activity-schema3-v3";
 #[derive(Debug, Default)]
 pub struct Converter {
     migration: bool,
+    originals_only: bool,
     sources: BTreeMap<OpId, Source>,
     derived: BTreeMap<OpId, Derived>,
     folded: BTreeMap<OpId, Vec<OpId>>,
@@ -33,12 +34,21 @@ pub struct Converter {
     retained: BTreeMap<OpId, OpId>,
     blocked: BTreeSet<OpId>,
     calls: calls::Calls,
+    human: human::Human,
     files: BTreeMap<OpId, (editchain_core::PathId, Option<OpId>)>,
     paths: BTreeMap<OpId, Payload>,
     path_notes: Vec<(OpId, OpId, Option<OpId>, Payload)>,
 }
 
 impl Converter {
+    pub(crate) fn for_originals(migration: bool) -> Self {
+        Self {
+            migration,
+            originals_only: true,
+            ..Self::default()
+        }
+    }
+
     /// Conversion of a frozen old chain, with aliases for folded metadata.
     /// Its ID namespace is separate from new capture, so merging both never
     /// gives changed bytes the same immutable event ID.
@@ -60,7 +70,12 @@ impl Converter {
     /// Blob payloads can be supplied by callers; `None` preserves an opaque source.
     /// # Errors
     /// Reports malformed recognized conversion metadata.
-    pub fn observe(&mut self, op: &Op, resolved: Option<&[u8]>) -> Result<(), ImportError> {
+    pub fn observe(
+        &mut self,
+        op: &Op,
+        resolved: Option<&[u8]>,
+        blobs: &mut dyn BlobSink,
+    ) -> Result<(), ImportError> {
         if self.blocked.contains(&op.id) {
             return Ok(());
         }
@@ -74,6 +89,11 @@ impl Converter {
                     Payload::Empty => Some([].as_slice()),
                     Payload::Blob(_) => resolved,
                 };
+                if !self.originals_only {
+                    if let Some(bytes) = bytes {
+                        self.human.observe(bytes, blobs)?;
+                    }
+                }
                 let info = Source::read(op, bytes);
                 if let (ScopeRef::Session(alias), Some(session)) = (op.scope, info.session) {
                     let _old = self.sessions.insert(alias.0, session);
@@ -329,7 +349,9 @@ impl Converter {
                 stored.as_deref()
             };
             if let Some(bytes) = bytes {
-                output.extend(human::activities(&record, bytes, blobs)?);
+                if !self.originals_only {
+                    output.extend(self.human.activities(&record, bytes, blobs)?);
+                }
             }
         }
         output.insert(
@@ -368,7 +390,7 @@ pub fn convert(operations: &[Op], blobs: &mut dyn BlobSink) -> Result<Vec<Op>, I
     converter.protect_conflicts(conflicts(operations)?);
     for op in operations {
         let stored = resolve_original(op, blobs)?;
-        converter.observe(op, stored.as_deref())?;
+        converter.observe(op, stored.as_deref(), blobs)?;
     }
     converter.finish_observations();
     let mut output = Vec::new();

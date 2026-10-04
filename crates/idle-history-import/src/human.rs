@@ -2,15 +2,15 @@
 //!
 //! The engine retains complete archive lines, including envelope fields and
 //! whitespace, independently of editor-specific validation and work derivation.
-//! Unknown or malformed records remain raw evidence and are counted as malformed.
+//! Unknown or malformed records retain their raw bytes and are counted as malformed.
 //! Known records use the recorder's full session/sequence identity, so overlapping
 //! archives and relocated files do not duplicate observations. Reusing that
 //! identity with different bytes retains a conflict, including after a rewrite.
 //!
 //! Archive operations have their own namespace. [`crate::human::native_event_id`] identifies
 //! the live recorder operation; an `OccurrenceOf` note relates the two. Import
-//! never invents the live recorder's cross-window causal parents. Editor capture,
-//! validation and human-work materialization remain with the editor adapter.
+//! never invents cross-window causal parents. Schema-three conversion delegates
+//! editor validation, identities and activities to `idle-editor-capture`.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -36,7 +36,7 @@ pub struct HumanImportRequest {
     /// A JSONL archive or a directory containing JSONL archives recursively.
     pub source: PathBuf,
     /// Exact recorded `workspace_path` to include; `None` includes every root.
-    /// This is capture provenance, not a product workspace or current directory.
+    /// This identifies the recording location, independent of the current directory.
     pub recorded_root: Option<String>,
 }
 
@@ -110,7 +110,7 @@ impl HumanArchiveRecord {
 /// Derive the existing live editor operation identity without changing its contract.
 ///
 /// This is the recorder session/sequence mapping used before archive imports
-/// existed. It is distinct from archive evidence IDs and persistent person IDs.
+/// existed. It is distinct from archive record IDs and persistent person IDs.
 ///
 /// # Errors
 /// Returns an encoding error if the hash cannot supply the fixed identity bytes.
@@ -201,12 +201,19 @@ pub(crate) fn import_human_files(
             cursors.get_reservation(&resolved.canonical_key)?.as_ref(),
             &options.source_control(),
         )?;
-        if plan.state() == SourceReadState::Unchanged {
-            continue;
+        let changed = plan.state() != SourceReadState::Unchanged;
+        if changed {
+            report.files_processed = report.files_processed.saturating_add(1);
         }
-        report.files_processed = report.files_processed.saturating_add(1);
         let stream = SourceStream::new(resolved.source_node, plan.generation());
-        for (index, line) in plan.lines().iter().enumerate() {
+        let context = options.normalize.then(|| plan.all_lines()).transpose()?;
+        let lines = context.as_deref().unwrap_or_else(|| plan.lines());
+        let start = if context.is_some() {
+            0
+        } else {
+            plan.start_seq()
+        };
+        for (index, line) in lines.iter().enumerate() {
             options.cancellation.check(path)?;
             let record = HumanArchiveRecord::parse(&line.data);
             if request.recorded_root.as_ref().is_some_and(|root| {
@@ -216,21 +223,29 @@ pub(crate) fn import_human_files(
             }) {
                 continue;
             }
-            let ordinal = plan
-                .start_seq()
+            let ordinal = start
                 .checked_add(u64::try_from(index).map_err(io::Error::other)?)
                 .and_then(|ordinal| ordinal.checked_add(1))
                 .ok_or_else(|| ImportError::CursorStore("human record ordinal exhausted".into()))?;
             let fallback = stream.source_position(SourcePosition::raw(ordinal))?;
             let raw = raw_op(record.as_ref(), line, fallback, blobs)?;
+            if ordinal <= plan.start_seq() {
+                if options.normalize {
+                    ops.observe_source(&raw)?;
+                }
+                continue;
+            }
             emit_op(&raw, ops, &mut report, EmissionKind::Raw)?;
             if let Some(record) = record {
-                // Identity evidence is always retained, even for raw-only capture.
+                // Native identity mappings are retained even for raw-only capture.
                 let mapping = occurrence(&record, &raw, line.hash)?;
                 emit_op(&mapping, ops, &mut report, EmissionKind::Derived)?;
             } else {
                 report.malformed = report.malformed.saturating_add(1);
             }
+        }
+        if !changed {
+            continue;
         }
         let mut checkpoint = plan.checkpoint().clone();
         checkpoint.source_node = Some(resolved.source_node);

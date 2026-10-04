@@ -1,6 +1,7 @@
 [package]
+publish = false
 name = "idle-coordination"
-version = "0.1.0"
+version.workspace = true
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
@@ -14,9 +15,9 @@ categories = ["development-tools"]
 workspace = true
 
 [dependencies]
-idle-history = { path = "../idle-history" }
-idle-protocol = { path = "../idle-protocol" }
-editchain-sync = { path = "../../../editchain/crates/editchain-sync" }
+idle-history = { registry = "idle-host-tools", version = "0.1.0", path = "../idle-history" }
+idle-protocol = { registry = "idle-host-tools", version = "0.1.0", path = "../idle-protocol" }
+editchain-sync = { registry = "idle-editchain", version = "0.1.0" }
 async-trait = "0.1"
 base64 = "0.22"
 blake3 = "1"
@@ -36,6 +37,6 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "nat
 russh = { version = "0.37.1", default-features = false, features = ["openssl"] }
 
 [dev-dependencies]
-editchain-core = { path = "../../../editchain/crates/editchain-core" }
-editchain-store = { path = "../../../editchain/crates/editchain-store" }
+editchain-core = { registry = "idle-editchain", version = "0.1.0" }
+editchain-store = { registry = "idle-editchain", version = "0.1.0" }
 tokio = { version = "1", features = ["test-util"] }

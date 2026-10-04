@@ -1,5 +1,9 @@
 //! Rebuildable revision and Git-context lookup, independent of hash ordering.
 
+use crate::{
+    CaptureBlobs, convert, identity,
+    wire::{EditorEvent, EditorEventKind},
+};
 use editchain_core::{
     ContentId, OpId,
     activity::{FileAction, ItemId, Kind, Operation},
@@ -10,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(crate) struct Revision {
     pub(crate) content: ContentId,
     pub(crate) operation: OpId,
-    sequence: u64,
+    pub(crate) sequence: u64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -23,6 +27,54 @@ pub(crate) struct State {
 }
 
 impl State {
+    pub(crate) fn observe(
+        &mut self,
+        event: &EditorEvent,
+        blobs: &mut dyn CaptureBlobs,
+    ) -> crate::Result<()> {
+        if let EditorEventKind::DocumentSnapshot { document, text }
+        | EditorEventKind::DocumentChanged {
+            document,
+            after: text,
+            ..
+        } = &event.event
+        {
+            let _stored = blobs.retain(text.as_bytes())?;
+            let item = identity::revision(event, document, document.version);
+            self.remember_revision(
+                item,
+                Revision {
+                    content: convert::content(text.as_bytes()),
+                    operation: identity::event(event, "activity"),
+                    sequence: event.sequence,
+                },
+            );
+            if matches!(event.event, EditorEventKind::DocumentChanged { .. }) {
+                let _old = self
+                    .changes
+                    .insert(identity::event(event, "activity"), item);
+            }
+        }
+        if let EditorEventKind::TrackingStarted { dwell_ms, .. } = event.event {
+            let _old = self.dwell.insert(identity::session(event), dwell_ms);
+        }
+        if matches!(event.event, EditorEventKind::WorkspaceContext { .. }) {
+            let _old = self
+                .contexts
+                .entry(identity::session(event))
+                .or_default()
+                .insert(event.sequence, identity::event(event, "activity"));
+        }
+        Ok(())
+    }
+
+    fn remember_revision(&mut self, item: ItemId, revision: Revision) {
+        let entry = self.revisions.entry(item).or_insert(revision);
+        if revision.sequence < entry.sequence {
+            *entry = revision;
+        }
+    }
+
     pub(crate) fn mark_disputed(&mut self, recorder: ItemId) {
         let _inserted = self.disputed.insert(recorder);
     }
@@ -57,10 +109,7 @@ impl State {
                     operation: operation.id,
                     sequence,
                 };
-                let entry = self.revisions.entry(item).or_insert(revision);
-                if sequence < entry.sequence {
-                    *entry = revision;
-                }
+                self.remember_revision(item, revision);
             }
         }
         if let Kind::Note(note) = &operation.kind

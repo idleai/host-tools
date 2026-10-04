@@ -2,6 +2,7 @@
 #![cfg(unix)]
 
 use blake3 as _;
+use idle_editor_capture as _;
 use idle_history as _;
 use process_wrap as _;
 use proptest as _;
@@ -59,6 +60,9 @@ macro_rules! verify_ne {
 
 #[path = "import_api/schema3_review.rs"]
 mod schema3_review;
+
+#[path = "import_api/human_replay.rs"]
+mod human_replay;
 
 const HUMAN: &[u8] = include_bytes!("fixtures/human/session.jsonl");
 const CLAUDE: &[u8] = include_bytes!("fixtures/claude/session.jsonl");

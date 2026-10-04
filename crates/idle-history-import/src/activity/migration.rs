@@ -35,6 +35,28 @@ pub fn uses_migration_ids(root: &Path) -> io::Result<bool> {
     }
 }
 
+/// Verify that canonical editor activities can be imported into this destination.
+/// Existing archives converted with older IDs remain readable, but must be
+/// replayed into a new destination before combining them with live capture.
+/// This scan is needed only when converting human archive records.
+/// # Errors
+/// Returns storage errors or an incompatible human conversion error.
+pub fn validate_human_destination(root: &Path) -> io::Result<()> {
+    if root.exists() {
+        let _stats = editchain_store::visit_records(root, &mut |_flags, bytes| {
+            if let Ok(op) = decode_op(bytes) {
+                if let OpKind::Activity(record) = op.kind {
+                    if super::human::previous_conversion(&record) {
+                        return Err(io::Error::other("older human archive conversion; replay the original archives into a new destination before combining them with live capture; existing records remain readable"));
+                    }
+                }
+            }
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
+
 fn infer_namespace(root: &Path) -> io::Result<bool> {
     if !root.exists() {
         return Ok(false);
@@ -166,7 +188,13 @@ impl RecordTransform for Transform {
                 None
             };
             self.converter
-                .observe(&op, resolved.as_deref())
+                .observe(
+                    &op,
+                    resolved.as_deref(),
+                    self.blobs
+                        .as_mut()
+                        .ok_or_else(|| io::Error::other("schema converter not prepared"))?,
+                )
                 .map_err(io::Error::other)
         })?;
         self.originals = Some(blobs);

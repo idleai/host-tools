@@ -4,28 +4,23 @@ mod files;
 mod notes;
 
 use editchain_core::{
-    BlobRef, ContentId, Payload,
+    ContentId, Payload,
     activity::{
         Author, AuthorRole, ItemId, Kind, NativeId, Operation, Original, OriginalRef, Session,
         SessionAction,
     },
 };
-use editchain_store::BlobStore;
 
 use crate::{
-    identity,
+    CaptureBlobs, identity,
     state::State,
     wire::{EditorEvent, EditorEventKind},
 };
 
 pub(crate) const CONVERTER: &str = "idle.vscode.schema3.v1";
 
-pub(crate) fn payload(bytes: &[u8], blobs: &mut BlobStore) -> crate::Result<Payload> {
-    blobs.write(bytes)?;
-    Ok(Payload::Blob(BlobRef {
-        id: content(bytes),
-        len: u32::try_from(bytes.len())?,
-    }))
+pub(crate) fn payload(bytes: &[u8], blobs: &mut dyn CaptureBlobs) -> crate::Result<Payload> {
+    Ok(Payload::Blob(blobs.retain(bytes)?))
 }
 
 pub(crate) fn content(bytes: &[u8]) -> ContentId {
@@ -57,7 +52,7 @@ pub(crate) fn operation(event: &EditorEvent, lane: &str, item: ItemId, kind: Kin
 pub(crate) fn original(
     event: &EditorEvent,
     raw: &[u8],
-    blobs: &mut BlobStore,
+    blobs: &mut dyn CaptureBlobs,
 ) -> crate::Result<Operation> {
     let id = identity::event(event, "raw");
     let mut operation = operation(
@@ -97,7 +92,7 @@ pub(crate) fn original(
 pub(crate) fn activities(
     event: &EditorEvent,
     state: &State,
-    blobs: &mut BlobStore,
+    blobs: &mut dyn CaptureBlobs,
 ) -> crate::Result<Vec<Operation>> {
     let mut operations = Vec::new();
     if matches!(event.event, EditorEventKind::TrackingStarted { .. }) {

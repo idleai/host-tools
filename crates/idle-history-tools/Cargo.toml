@@ -1,24 +1,31 @@
 [package]
+publish = ["idle-host-tools"]
 name = "idle-history-tools"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 rust-version = "1.97"
 license = "MIT"
-publish = false
 description = "Idle command-line source import and provider inspection"
 repository = "https://github.com/idleai/host-tools"
+readme = "../../README.md"
+keywords = ["idle", "history", "development"]
+categories = ["development-tools"]
 
 [dependencies]
-idle-history-import = { path = "../idle-history-import" }
-editchain-engine = { path = "../../../editchain/crates/editchain-engine" }
-editchain-git = { path = "../../../editchain/crates/editchain-git" }
-editchain-store = { path = "../../../editchain/crates/editchain-store" }
+editchain-cli-support = { registry = "idle-editchain", version = "0.1.0" }
+idle-history-import = { registry = "idle-host-tools", version = "0.1.0", path = "../idle-history-import" }
+editchain-engine = { registry = "idle-editchain", version = "0.1.0" }
+editchain-git = { registry = "idle-editchain", version = "0.1.0" }
+editchain-store = { registry = "idle-editchain", version = "0.1.0" }
 clap = { version = "4", features = ["derive"] }
 ctrlc = { version = "3.5", features = ["termination"] }
 glob = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
+
+[dev-dependencies]
+idle-history-import = { registry = "idle-host-tools", version = "0.1.0", path = "../idle-history-import", features = ["fixtures"] }
 
 [lints]
 workspace = true

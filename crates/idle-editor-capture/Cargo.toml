@@ -1,18 +1,22 @@
 [package]
+publish = ["idle-host-tools"]
 name = "idle-editor-capture"
-version = "0.1.0"
+version.workspace = true
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
-publish = false
 description = "Reusable editor observation conversion and durable capture"
 repository = "https://github.com/idleai/host-tools"
+readme = "../../README.md"
+keywords = ["idle", "history", "development"]
+categories = ["development-tools"]
 
 [dependencies]
-idle-history = { path = "../idle-history" }
-editchain-core = { path = "../../../editchain/crates/editchain-core" }
-editchain-store = { path = "../../../editchain/crates/editchain-store" }
-editchain-git = { path = "../../../editchain/crates/editchain-git" }
+idle-host-io = { registry = "idle-host-tools", version = "0.1.0", path = "../idle-host-io" }
+idle-history = { registry = "idle-host-tools", version = "0.1.0", path = "../idle-history" }
+editchain-core = { registry = "idle-editchain", version = "0.1.0" }
+editchain-store = { registry = "idle-editchain", version = "0.1.0" }
+editchain-git = { registry = "idle-editchain", version = "0.1.0" }
 blake3 = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["raw_value"] }

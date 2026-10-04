@@ -4,15 +4,18 @@ members = [
     "crates/idle-editor-capture",
     "crates/idle-history-native",
     "crates/idle-history",
+    "crates/idle-host-io",
     "crates/idle-history-collector",
     "crates/idle-history-import",
     "crates/idle-history-tools",
-    "crates/idle-peer-state",
     "crates/idle-protocol",
     "crates/idle-repository",
     "crates/idle-ssh-buffer-compat",
 ]
 resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
 
 # Dev Tunnels uses Microsoft's OpenSSL SSH fork, as does the native VS Code CLI.
 # Pin every package to the same reviewed source; keep SDK/SSH integration tests together.

@@ -61,6 +61,23 @@ impl<B: BlobStorage> BufferedBlobSink<B> {
 }
 
 impl<B: BlobStorage> BlobSink for BufferedBlobSink<B> {
+    fn read_content(&self, id: ContentId) -> Result<Option<Vec<u8>>, ImportError> {
+        if let Some(bytes) = self
+            .pending
+            .iter()
+            .find(|bytes| ContentId::Hash256(*blake3::hash(bytes).as_bytes()) == id)
+        {
+            return Ok(Some(bytes.clone()));
+        }
+        match self.store.read_content(id)? {
+            BlobResolution::Found(bytes) => Ok(Some(bytes)),
+            BlobResolution::Missing | BlobResolution::Unresolvable => Ok(None),
+            BlobResolution::Corrupt => Err(ImportError::BlobSink(
+                "source content does not match its address".into(),
+            )),
+        }
+    }
+
     fn read_blob(&self, reference: &BlobRef) -> Result<Option<Vec<u8>>, ImportError> {
         if let Some(bytes) = self
             .pending

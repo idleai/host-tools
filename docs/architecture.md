@@ -20,13 +20,13 @@ flowchart LR
 `idle-protocol` is an independent contract crate. It depends on Serde, with an
 optional schema exporter, and contains no network, credential, cloud, engine or
 Crux implementation. App-core, Evo, Offstage and service clients consume it
-without pulling in native collection or the TypeScript coordinator.
+without pulling in native collection or coordination services.
 
 `idle-history` owns the portable source/history contracts needed by both import
 adapters and app-core. Keeping it here prevents the native tools from depending
-back on the application reducer. `idle-peer-state` exposes its existing pure
-connection helpers to Node; app-core continues to own the client model and
-subscription effects.
+back on the application reducer. App-core and native coordination use its pure
+connection helpers directly; app-core owns the client model and subscription
+effects.
 
 Native packages depend on these contracts and EditChain. EditChain knows only
 its own schema, storage, indexes, queries, replication and tooling. It has no
@@ -38,6 +38,15 @@ exact content previews and author/exposure projections. Both services build
 without app-core or VS Code. `idle-history` provides their portable request and
 result contracts; app-core retains Crux operations, application result adapters
 and peer-awareness view state.
+
+`idle-host-io` supplies bounded little-endian framing to capture, collection,
+repository and history services. Each service retains its own request/response
+shape and size limits. The blocking and async adapters use the same length
+validation. Coordination retains its separate big-endian protocol.
+
+The engine and application CLIs share `editchain-cli-support` for input limits,
+stream formatting and basic exit codes. Application import errors and engine
+query abbreviations stay with their respective commands.
 
 VS Code owns editor event observation, webviews, credential storage, trust checks
 and native editor actions. Its only Rust crate is `idle-vscode-webview`, which
@@ -52,8 +61,8 @@ framed service. Hosts inject authentication, credentials, persistence and relay
 transport. The production relay adapter uses Microsoft's Rust Dev Tunnels SDK
 for management, host and client connections. Peer-v5 authentication, inventory
 and replication remain in EditChain; lifecycle state comes from `idle-history`.
-The earlier TypeScript coordinator is retained for compatibility consumers and
-older-peer interoperability checks. Current VS Code sharing uses the Rust service.
+The TypeScript native peer bridge and invitation parser support older-peer
+interoperability checks. Current VS Code sharing uses the Rust service.
 Native consumers require neither Node nor app-core. See
 [native coordination](coordination.md) for ownership and upgrades.
 

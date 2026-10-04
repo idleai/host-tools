@@ -15,10 +15,9 @@ function target(manifest) {
   return JSON.parse(metadata).target_directory;
 }
 const collector = path.join(target(path.join(repository, 'Cargo.toml')), 'debug', executable('idle-history-collector'));
-const engine = path.join(target(path.join(repository, '../editchain/Cargo.toml')), 'debug', executable('editchain'));
-const helper = process.argv[2] || path.join(
-  target(path.join(repository, '../codex/tools/codex-session-exporter/Cargo.toml')),
-  'debug', executable('codex-session-exporter'));
+const engine = process.env.IDLE_EDITCHAIN_BIN || path.join(repository, '.artifacts/engine/bin', executable('editchain'));
+const helper = process.argv[2] || process.env.IDLE_CODEX_EXPORTER
+  || path.join(repository, '.artifacts/codex-exporter/bin', executable('codex-session-exporter'));
 assert.ok(path.isAbsolute(helper), 'the exporter must have an explicit absolute path');
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'idle-headless-'));
 const children = new Set();

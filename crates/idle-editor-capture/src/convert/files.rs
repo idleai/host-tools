@@ -1,7 +1,7 @@
 //! Exact UTF-8 contents and native UTF-16 coordinates stay distinct.
 
 use crate::{
-    identity,
+    CaptureBlobs, identity,
     state::State,
     wire::{EditorEvent, EditorEventKind, EditorRange},
 };
@@ -9,12 +9,12 @@ use editchain_core::{
     ByteRange, FileEdit, Payload,
     activity::{ChangeState, File, FileAction, ItemId, Kind, Operation, TextEdit, TextRange},
 };
-use editchain_store::BlobStore;
+use editchain_store::BlobResolution;
 
 pub(super) fn convert(
     event: &EditorEvent,
     state: &State,
-    blobs: &mut BlobStore,
+    blobs: &mut dyn CaptureBlobs,
 ) -> crate::Result<Operation> {
     let mut file = empty();
     let mut causes = Vec::new();
@@ -51,6 +51,7 @@ pub(super) fn convert(
             causes.push(previous);
             let known = state
                 .revision(previous)
+                .filter(|revision| revision.sequence < event.sequence)
                 .ok_or("source revision is unavailable; capture a baseline first")?;
             if Some(known.content) != file.before {
                 return Err("source revision content differs from the captured baseline".into());
@@ -105,10 +106,11 @@ pub(super) fn convert(
             let item = identity::revision(event, document, document.version);
             let known = state
                 .revision(item)
+                .filter(|revision| revision.sequence < event.sequence)
                 .ok_or("viewed revision is unavailable; capture a baseline first")?;
-            let bytes = blobs
-                .resolve_content(known.content)
-                .ok_or("viewed revision bytes are unavailable")?;
+            let BlobResolution::Found(bytes) = blobs.read_content(known.content)? else {
+                return Err("viewed revision bytes are unavailable".into());
+            };
             let text = std::str::from_utf8(&bytes)?;
             file.ranges = ranges
                 .iter()
@@ -156,7 +158,10 @@ pub(super) fn convert(
         let name = document.path.as_deref().unwrap_or(&document.uri);
         file.name = super::inline(name);
         file.path = identity::path(name);
-        if let Some(known) = state.revision(revision) {
+        if let Some(known) = state
+            .revision(revision)
+            .filter(|revision| revision.sequence <= event.sequence)
+        {
             if file.after.is_some_and(|content| content != known.content) {
                 return Err("revision identity was reused with different content".into());
             }

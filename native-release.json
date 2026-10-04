@@ -1,0 +1,14 @@
+{
+  "repository": "idleai/host-tools",
+  "tag_prefix": "idle-coordination-v",
+  "build_args": ["-p", "idle-editor-capture", "-p", "idle-history-native", "-p", "idle-history-collector", "-p", "idle-repository", "-p", "idle-coordination", "--bins", "--examples"],
+  "binaries": ["idle-editor-service", "idle-history-service", "idle-history-collector", "idle-repository", "idle-coordination"],
+  "examples": ["history-fixture", "loopback-coordinator"],
+  "test_packages": ["idle-coordination"],
+  "files": {
+    "scripts/coordination-peer.cjs": "scripts/coordination-peer.cjs",
+    "scripts/smoke-tunnels.py": "scripts/smoke-tunnels.py",
+    "packages/history-runtime": "packages/history-runtime",
+    "crates/idle-history-import/tests/fixtures/codex/rollout-contract.jsonl": "fixtures/rollout-contract.jsonl"
+  }
+}

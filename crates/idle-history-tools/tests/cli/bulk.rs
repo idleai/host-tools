@@ -8,7 +8,7 @@ fn oversized_originals_have_the_same_preview_and_durable_activities() {
     let temp = tempfile::tempdir().unwrap();
     let source = temp.path().join("source");
     std::fs::create_dir(&source).unwrap();
-    let fixture = include_str!("../../../idle-history-import/tests/fixtures/human/session.jsonl");
+    let fixture = idle_history_import::fixtures::HUMAN_SESSION;
     let mut snapshot: serde_json::Value =
         serde_json::from_str(fixture.lines().nth(1).unwrap()).unwrap();
     drop(
@@ -31,15 +31,33 @@ fn oversized_originals_have_the_same_preview_and_durable_activities() {
             args.extend(["--glob", "*.jsonl"]);
         }
         let report = result(&chain, &args, b"", 0);
-        assert_eq!(report.get("raw_ops"), Some(&json!(1)));
-        assert_eq!(report.get("normalized_ops"), Some(&json!(2)));
+        // Preserve the archive envelope and exact live event as separate Originals.
+        assert_eq!(report.get("raw_ops"), Some(&json!(2)));
+        assert_eq!(report.get("normalized_ops"), Some(&json!(4)));
+        let originals = result(&chain, &["history", "--kind", "Original"], b"", 0);
+        let providers: std::collections::BTreeSet<_> = originals
+            .get("items")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|item| {
+                item.pointer("/operation/kind/Original/provider")
+                    .and_then(serde_json::Value::as_str)
+            })
+            .collect();
+        assert_eq!(providers, ["human", "vscode.editor"].into_iter().collect());
         let files = result(&chain, &["history", "--kind", "File"], b"", 0);
         assert_eq!(files.get("items").unwrap().as_array().unwrap().len(), 1);
         let links = result(&chain, &["history", "--kind", "Link"], b"", 0);
-        assert_eq!(links.get("items").unwrap().as_array().unwrap().len(), 1);
-        assert_eq!(
-            links.pointer("/items/0/operation/kind/Link/relation"),
-            Some(&json!("OccurrenceOf"))
+        let links = links.get("items").unwrap().as_array().unwrap();
+        assert_eq!(links.len(), 2);
+        assert!(
+            links
+                .iter()
+                .all(|item| item.pointer("/operation/kind/Link/relation")
+                    == Some(&json!("OccurrenceOf"))),
+            "both archive mappings remain explicit"
         );
         let dry = temp
             .path()
@@ -70,7 +88,7 @@ fn overlapping_globs_keep_nested_source_ids_and_deduplicate_files() {
     for path in [root.join("one.jsonl"), root.join("nested/two.jsonl")] {
         std::fs::write(
             path,
-            include_bytes!("../../../idle-history-import/tests/fixtures/human/session.jsonl"),
+            idle_history_import::fixtures::HUMAN_SESSION.as_bytes(),
         )
         .unwrap();
     }
@@ -121,7 +139,7 @@ fn overlapping_globs_keep_nested_source_ids_and_deduplicate_files() {
 
 #[test]
 fn dry_run_retains_conflicts_and_duplicates_within_and_across_files() {
-    let original = include_str!("../../../idle-history-import/tests/fixtures/human/session.jsonl");
+    let original = idle_history_import::fixtures::HUMAN_SESSION;
     let conflicting = original.replace("draft!", "other!");
     for separate_files in [false, true] {
         let temp = tempfile::tempdir().unwrap();
@@ -170,7 +188,7 @@ fn dry_run_retains_conflicts_and_duplicates_within_and_across_files() {
 #[test]
 fn manifest_dry_run_admits_all_sources_together() {
     let temp = tempfile::tempdir().unwrap();
-    let original = include_str!("../../../idle-history-import/tests/fixtures/human/session.jsonl");
+    let original = idle_history_import::fixtures::HUMAN_SESSION;
     let conflicting = original.replace("draft!", "other!");
     let mut sources = Vec::new();
     for (name, content) in [
@@ -224,28 +242,23 @@ fn one_manifest_imports_all_providers_and_matches_separate_imports() {
         (
             "claude",
             "session.jsonl",
-            include_bytes!("../../../idle-history-import/tests/fixtures/claude/session.jsonl")
-                .as_slice(),
+            idle_history_import::fixtures::CLAUDE_SESSION.as_bytes(),
         ),
         (
             "human",
             "session.jsonl",
-            include_bytes!("../../../idle-history-import/tests/fixtures/human/session.jsonl")
-                .as_slice(),
+            idle_history_import::fixtures::HUMAN_SESSION.as_bytes(),
         ),
         (
             "codex",
             "rollout-contract.jsonl",
-            include_bytes!(
-                "../../../idle-history-import/tests/fixtures/codex/rollout-contract.jsonl"
-            )
-            .as_slice(),
+            idle_history_import::fixtures::CODEX_ROLLOUT.as_bytes(),
         ),
     ];
     let projection = temp.path().join("projection.ndjson");
     std::fs::write(
         &projection,
-        include_bytes!("../../../idle-history-import/tests/fixtures/codex/projection.ndjson"),
+        idle_history_import::fixtures::CODEX_PROJECTION.as_bytes(),
     )
     .unwrap();
     let helper = temp.path().join("helper.sh");

@@ -1,5 +1,7 @@
 //! Folder-bound collection through IPC or a standalone watch loop.
 
+use idle_host_io as _;
+
 use idle_history_collector::{Binding, Collector, Mode, Poll, Update};
 use std::{
     io,

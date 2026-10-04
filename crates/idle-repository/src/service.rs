@@ -3,7 +3,7 @@
 use std::io;
 
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::{Binding, Credentials, Reader, Snapshot};
 
@@ -40,21 +40,7 @@ pub async fn serve(
 ) -> io::Result<()> {
     let mut reader = Reader::new(binding)?;
     let mut input = input;
-    loop {
-        let mut header = [0; 4];
-        let Some((first, rest)) = header.split_first_mut() else {
-            return Err(io::Error::other("Invalid repository frame header."));
-        };
-        if input.read(std::slice::from_mut(first)).await? == 0 {
-            return Ok(());
-        }
-        let _read = input.read_exact(rest).await?;
-        let length = usize::try_from(u32::from_le_bytes(header)).map_err(io::Error::other)?;
-        if !(1..=16 * 1024).contains(&length) {
-            return Err(io::Error::other("Invalid repository request length."));
-        }
-        let mut bytes = vec![0; length];
-        let _read = input.read_exact(&mut bytes).await?;
+    while let Some(bytes) = idle_host_io::asynchronous::read_frame(&mut input, 16 * 1024).await? {
         let request: Request = serde_json::from_slice(&bytes)
             .map_err(|_error| io::Error::other("Invalid repository request."))?;
         let response = Response {
@@ -73,14 +59,7 @@ pub async fn serve(
                 "Repository snapshot exceeds the response limit.",
             ));
         }
-        output
-            .write_all(
-                &u32::try_from(bytes.len())
-                    .map_err(io::Error::other)?
-                    .to_le_bytes(),
-            )
-            .await?;
-        output.write_all(&bytes).await?;
-        output.flush().await?;
+        idle_host_io::asynchronous::write_frame(&mut output, &bytes, 8 * 1024 * 1024).await?;
     }
+    Ok(())
 }

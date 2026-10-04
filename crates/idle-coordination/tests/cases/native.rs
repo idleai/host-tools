@@ -1,4 +1,9 @@
-use std::{path::Path, process::Stdio, sync::Arc, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    process::Stdio,
+    sync::Arc,
+    time::Duration,
+};
 
 use idle_coordination::{
     Error, Result,
@@ -28,7 +33,9 @@ use super::support::{
 };
 
 fn launch(path: &Path) -> Result<(Child, Client<ChildStdout, ChildStdin>)> {
-    let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_idle-coordination"))
+    let binary = std::env::var_os("IDLE_COORDINATION_BINARY")
+        .unwrap_or_else(|| env!("CARGO_BIN_EXE_idle-coordination").into());
+    let mut child = tokio::process::Command::new(binary)
         .args(["--config", path.to_str().ok_or(Error::Invalid)?])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -436,11 +443,21 @@ async fn rust_coordinator_replicates_with_existing_typescript_peer_bridge() -> s
             .map_err(|_error| std::io::Error::other("host closed"))?;
         tokio::io::copy_bidirectional(&mut tcp, &mut stream).await
     });
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let binary = repository.join("../editchain/target/debug/editchain-peer");
+    let repository = std::env::var_os("IDLE_COORDINATION_TEST_ROOT").map_or_else(
+        || Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
+        PathBuf::from,
+    );
+    let binary = std::env::var_os("IDLE_ENGINE_PEER").map_or_else(
+        || {
+            repository
+                .join(".artifacts/engine/bin")
+                .join(format!("editchain-peer{}", std::env::consts::EXE_SUFFIX))
+        },
+        PathBuf::from,
+    );
     ensure!(
         binary.exists(),
-        "lint's engine integration tools step must build the existing peer worker"
+        "install the engine release with scripts/install-artifacts.py before running compatibility tests"
     )?;
     let mut child = tokio::process::Command::new("node")
         .arg(repository.join("scripts/coordination-peer.cjs"))

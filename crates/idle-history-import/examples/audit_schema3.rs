@@ -1,5 +1,6 @@
 //! Sequential full-corpus audit: exact sources, every old address, and all payload references.
 use editchain_engine as _;
+use idle_editor_capture as _;
 use idle_history as _;
 use idle_history_import as _;
 use process_wrap as _;

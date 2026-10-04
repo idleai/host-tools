@@ -196,27 +196,7 @@ pub fn serve(mut input: impl Read, mut output: impl Write, binding: &Binding) ->
             "history sources require absolute directories",
         ));
     }
-    loop {
-        let mut header = [0; 4];
-        if input.read(
-            header
-                .get_mut(..1)
-                .ok_or_else(|| io::Error::other("frame header"))?,
-        )? == 0
-        {
-            return Ok(());
-        }
-        input.read_exact(
-            header
-                .get_mut(1..)
-                .ok_or_else(|| io::Error::other("frame header"))?,
-        )?;
-        let length = usize::try_from(u32::from_le_bytes(header)).map_err(io::Error::other)?;
-        if length == 0 || length > MAX_REQUEST {
-            return Err(io::Error::other("invalid history request length"));
-        }
-        let mut bytes = vec![0; length];
-        input.read_exact(&mut bytes)?;
+    while let Some(bytes) = idle_host_io::read_frame(&mut input, MAX_REQUEST)? {
         let request: Envelope = serde_json::from_slice(&bytes).map_err(io::Error::other)?;
         let response = Response {
             id: request.id,
@@ -233,14 +213,9 @@ pub fn serve(mut input: impl Read, mut output: impl Write, binding: &Binding) ->
             })
             .map_err(io::Error::other)?;
         }
-        output.write_all(
-            &u32::try_from(bytes.len())
-                .map_err(io::Error::other)?
-                .to_le_bytes(),
-        )?;
-        output.write_all(&bytes)?;
-        output.flush()?;
+        idle_host_io::write_frame(&mut output, &bytes, MAX_RESPONSE)?;
     }
+    Ok(())
 }
 
 fn execute(binding: &Binding, request: &Request) -> Result<Preview, Failure> {

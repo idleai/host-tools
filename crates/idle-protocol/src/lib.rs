@@ -11,6 +11,8 @@
 //!
 //! See the packaged `docs/v1.md` for normative retry, authority and recovery rules.
 
+#[cfg(feature = "fixtures")]
+pub mod fixtures;
 pub mod v1;
 
 #[cfg(test)]
