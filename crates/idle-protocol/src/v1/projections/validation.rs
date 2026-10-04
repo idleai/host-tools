@@ -99,6 +99,11 @@ impl ProjectionInput {
         }
         let mut keys = BTreeSet::new();
         for row in &self.rows {
+            if row.url.as_ref().is_some_and(|url| !safe_url(url)) {
+                return Err(InvalidProjection(
+                    "Projection source links require HTTPS without credentials or control characters",
+                ));
+            }
             if row.key.is_empty() || !keys.insert(&row.key) || row.sources.is_empty() {
                 return Err(InvalidProjection(
                     "Projection rows require unique nonempty keys and source references",
@@ -129,6 +134,19 @@ impl ProjectionInput {
         }
         Ok(())
     }
+}
+
+fn safe_url(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://") else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    url.len() <= 4096
+        && !authority.is_empty()
+        && !authority.contains('@')
+        && !url.chars().any(|character| {
+            character.is_control() || character.is_whitespace() || character == '\\'
+        })
 }
 
 impl ProjectionSnapshot {

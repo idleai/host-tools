@@ -76,3 +76,7 @@ restart and source replacement, without app-core or VS Code.
 The `f47/host-tools` restructuring moves existing package ownership and makes
 collection usable from native hosts. Production Offstage API adapters, full Evo
 coordination and native/TUI applications retain their separate feature work.
+
+The [standalone repository reader](docs/repository.md) supplies Git/GitHub data,
+exact projection sources and recorded-session discovery through a native library
+and framed service. It has no app-core or renderer dependency.

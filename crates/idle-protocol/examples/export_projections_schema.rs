@@ -15,3 +15,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     Ok(())
 }
+
+#[cfg(feature = "reflection")]
+use facet as _;

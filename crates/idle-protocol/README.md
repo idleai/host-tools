@@ -32,7 +32,7 @@ serialized as `"runner"` or `"control"`. Messages carry `api_version: "1"`.
 
 `v1::projections::ProjectionSnapshot` separately carries `version: "1"`, a
 workspace/chain scope and all five projection destinations. Its rows preserve
-full observation/item references, supplied labels/status, counts, freshness and
+full observation/item references, optional HTTPS source pages, supplied labels/status, counts, freshness and
 explicit partial/unavailable results. Call `validate()` before admitting decoded
 inputs. Evo owns controller payload meanings and maps them into this contract;
 this crate does not interpret Note/Link payloads or persist controller state.
@@ -55,6 +55,8 @@ cargo run --locked -p idle-protocol --features schema \
   --example export_projections_schema -- crates/idle-protocol/schemas/projections-v1.json
 cargo run --locked -p idle-protocol --features schema \
   --example export_standalone_schema -- crates/idle-protocol/schemas/standalone-v1.json
+cargo run --locked -p idle-protocol --features schema \
+  --example export_repository_schema -- crates/idle-protocol/schemas/repository-v1.json
 ./scripts/lint.sh
 ```
 
@@ -72,3 +74,8 @@ engine queries, client interactions and the f11 mapper boundary.
 The additive [repository schema](schemas/standalone-v1.json) covers
 `RepositoryMessage`. The [native service guide](../../docs/coordination.md)
 describes its endpoint framing, authorization and f15/f17 runtime boundary.
+
+The [repository snapshot schema](schemas/repository-v1.json) and
+[fixture](tests/fixtures/repository_snapshot.json) define read-only Git/GitHub
+facts and recorded sessions. These are separate from live session/control grants.
+The optional `reflection` feature supplies shared native-shell type metadata.

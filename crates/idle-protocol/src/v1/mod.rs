@@ -12,6 +12,7 @@ pub mod grants;
 pub mod identity;
 pub mod membership;
 pub mod projections;
+pub mod repository;
 pub mod resources;
 pub mod sessions;
 pub mod standalone;

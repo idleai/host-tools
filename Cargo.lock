@@ -2242,9 +2242,26 @@ dependencies = [
 name = "idle-protocol"
 version = "0.1.0"
 dependencies = [
+ "facet",
  "schemars",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "idle-repository"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "editchain-core",
+ "editchain-engine",
+ "idle-protocol",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "url",
 ]
 
 [[package]]

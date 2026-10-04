@@ -13,3 +13,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     fs::write(path, serde_json::to_string_pretty(&schema)?)?;
     Ok(())
 }
+
+#[cfg(feature = "reflection")]
+use facet as _;

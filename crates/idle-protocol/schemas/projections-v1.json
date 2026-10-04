@@ -301,6 +301,14 @@
         "title": {
           "description": "Supplied heading.",
           "type": "string"
+        },
+        "url": {
+          "description": "Optional public HTTPS source page, distinct from the exact history records.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
         }
       },
       "required": [
