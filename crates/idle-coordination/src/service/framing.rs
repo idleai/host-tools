@@ -14,7 +14,11 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{Error, Result, transport::bounded};
 
-use super::{Command, SERVICE_VERSION, Service};
+use super::{
+    Command, SERVICE_VERSION, Service,
+    credentials::{CredentialReply, CredentialRequest, HostCredentials},
+    native::Configuration,
+};
 
 const MAX_FRAME: usize = 16 * 1024 * 1024;
 type Controls = Arc<Mutex<BTreeMap<String, CancellationToken>>>;
@@ -42,6 +46,8 @@ pub enum Message {
     Call(ServiceRequest),
     /// Cancel a currently queued or running request by its connection-local ID.
     Cancel(String),
+    /// Reply to an on-demand credential request on this private connection.
+    Credential(CredentialReply),
 }
 
 /// Exactly one response to a valid call; errors contain fixed codes, no tokens.
@@ -128,56 +134,175 @@ where
     R: AsyncRead + Send + Unpin + 'static,
     W: AsyncWrite + Unpin,
 {
-    let controls = Arc::new(Mutex::new(BTreeMap::new()));
-    let (sender, mut receiver) = mpsc::channel(8);
-    let reading = tokio::spawn(read_requests(
-        reader,
-        sender,
-        controls.clone(),
-        cancel.child_token(),
-    ));
-    let mut refresh = tokio::time::interval(Duration::from_mins(1));
-    refresh.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    let result = async {
+    let mut input = Input::new(reader, cancel);
+    input.serve(service, &mut writer, cancel).await
+}
+
+/// Open and serve with credential callbacks available during startup recovery.
+///
+/// # Errors
+/// Reports invalid configuration, framing, startup or incomplete teardown.
+pub async fn serve_configuration<R, W>(
+    configuration: Configuration,
+    reader: R,
+    mut writer: W,
+    cancel: &CancellationToken,
+) -> Result<()>
+where
+    R: AsyncRead + Send + Unpin + 'static,
+    W: AsyncWrite + Unpin,
+{
+    let mut input = Input::new(reader, cancel);
+    let opening = async {
+        if configuration.host_credentials {
+            configuration
+                .open_with_credentials(input.credentials.clone())
+                .await
+        } else {
+            configuration.open().await
+        }
+    };
+    let opened = emit_while(opening, &mut input.events, &mut writer).await;
+    match opened {
+        Ok(mut service) => input.serve(&mut service, &mut writer, cancel).await,
+        Err(error) => {
+            let _closed = input.close().await;
+            Err(error)
+        }
+    }
+}
+
+struct Input {
+    controls: Controls,
+    requests: mpsc::Receiver<(ServiceRequest, CancellationToken)>,
+    credentials: Arc<HostCredentials>,
+    events: mpsc::Receiver<CredentialRequest>,
+    reading: tokio::task::JoinHandle<Result<()>>,
+}
+
+impl Input {
+    fn new<R: AsyncRead + Send + Unpin + 'static>(reader: R, cancel: &CancellationToken) -> Self {
+        let controls = Arc::new(Mutex::new(BTreeMap::new()));
+        let (sender, requests) = mpsc::channel(8);
+        let (credentials, events) = HostCredentials::new();
+        let reading = tokio::spawn(read_requests(
+            reader,
+            sender,
+            controls.clone(),
+            credentials.clone(),
+            cancel.child_token(),
+        ));
+        Self {
+            controls,
+            requests,
+            credentials,
+            events,
+            reading,
+        }
+    }
+
+    async fn serve<W: AsyncWrite + Unpin>(
+        &mut self,
+        service: &mut Service,
+        writer: &mut W,
+        cancel: &CancellationToken,
+    ) -> Result<()> {
+        let result = self.run(service, writer, cancel).await;
+        let cleanup = emit_while(service.suspend(), &mut self.events, writer).await;
+        let reading = self.close().await;
+        result.and(reading).and(cleanup)
+    }
+
+    async fn run<W: AsyncWrite + Unpin>(
+        &mut self,
+        service: &mut Service,
+        writer: &mut W,
+        cancel: &CancellationToken,
+    ) -> Result<()> {
+        let mut refresh = tokio::time::interval(Duration::from_mins(1));
+        refresh.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             tokio::select! {
                 biased;
-                () = cancel.cancelled() => break,
-                request = receiver.recv() => {
-                    let Some((request, lifetime)) = request else { break; };
+                () = cancel.cancelled() => return Ok(()),
+                request = self.requests.recv() => {
+                    let Some((request, lifetime)) = request else { return Ok(()); };
                     let ServiceRequest { version, id, timeout_ms, command } = request;
                     let expiry = lifetime.clone();
                     let timer = tokio::spawn(async move {
                         tokio::time::sleep(Duration::from_millis(u64::from(timeout_ms))).await;
                         expiry.cancel();
                     });
-                    let outcome = if version == SERVICE_VERSION { service.call(command, &lifetime).await } else { Err(Error::Version) };
+                    let outcome = if version == SERVICE_VERSION {
+                        emit_while(service.call(command, &lifetime), &mut self.events, writer).await
+                    } else { Err(Error::Version) };
                     timer.abort();
                     let response = ServiceResponse { version: SERVICE_VERSION, id: id.clone(), result: outcome };
-                    tokio::time::timeout(Duration::from_secs(10), write_frame(&mut writer, &response)).await.map_err(|_error| Error::Timeout)??;
-                    let _removed = controls.lock().map_err(|_error| Error::Storage)?.remove(&id);
+                    output(writer, &response).await?;
+                    let _removed = self.controls.lock().map_err(|_error| Error::Storage)?.remove(&id);
                 }
+                event = self.events.recv() => { credential_event(writer, event.ok_or(Error::Transport)?).await?; }
                 _tick = refresh.tick(), if service.directory.is_some() => {
-                    let _refreshed = service.refresh_directory(cancel).await;
+                    let _refreshed = emit_while(service.refresh_directory(cancel), &mut self.events, writer).await;
                 }
             }
         }
-        Ok(())
-    }.await;
-    reading.abort();
-    let reader_result = match reading.await {
-        Ok(result) => result,
-        Err(error) if error.is_cancelled() => Ok(()),
-        Err(_error) => Err(Error::Transport),
-    };
-    let cleanup = service.suspend().await;
-    result.and(reader_result).and(cleanup)
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        self.credentials.close();
+        self.reading.abort();
+        match (&mut self.reading).await {
+            Ok(result) => result,
+            Err(error) if error.is_cancelled() => Ok(()),
+            Err(_error) => Err(Error::Transport),
+        }
+    }
+}
+
+impl Drop for Input {
+    fn drop(&mut self) {
+        self.credentials.close();
+        self.reading.abort();
+    }
+}
+
+async fn output<W: AsyncWrite + Unpin, T: Serialize>(writer: &mut W, value: &T) -> Result<()> {
+    tokio::time::timeout(Duration::from_secs(10), write_frame(writer, value))
+        .await
+        .map_err(|_error| Error::Timeout)?
+}
+
+async fn credential_event<W: AsyncWrite + Unpin>(
+    writer: &mut W,
+    event: CredentialRequest,
+) -> Result<()> {
+    output(
+        writer,
+        &serde_json::json!({ "kind": "credential", "data": event }),
+    )
+    .await
+}
+
+async fn emit_while<T, W: AsyncWrite + Unpin>(
+    work: impl Future<Output = Result<T>>,
+    events: &mut mpsc::Receiver<CredentialRequest>,
+    writer: &mut W,
+) -> Result<T> {
+    tokio::pin!(work);
+    loop {
+        tokio::select! {
+            result = &mut work => return result,
+            event = events.recv() => credential_event(writer, event.ok_or(Error::Transport)?).await?,
+        }
+    }
 }
 
 async fn read_requests<R: AsyncRead + Unpin>(
     mut reader: R,
     sender: mpsc::Sender<(ServiceRequest, CancellationToken)>,
     controls: Controls,
+    credentials: Arc<HostCredentials>,
     cancel: CancellationToken,
 ) -> Result<()> {
     let result = async {
@@ -189,6 +314,7 @@ async fn read_requests<R: AsyncRead + Unpin>(
             };
             match message {
                 None => return Ok(()),
+                Some(Message::Credential(reply)) => credentials.reply(reply)?,
                 Some(Message::Cancel(id)) => {
                     if let Some(lifetime) =
                         controls.lock().map_err(|_error| Error::Storage)?.get(&id)
@@ -219,6 +345,7 @@ async fn read_requests<R: AsyncRead + Unpin>(
         }
     }
     .await;
+    credentials.close();
     for lifetime in controls.lock().map_err(|_error| Error::Storage)?.values() {
         lifetime.cancel();
     }

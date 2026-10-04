@@ -112,6 +112,7 @@ pub struct GitHubDirectory {
     repository: String,
     credentials: Arc<dyn Credentials>,
     http: reqwest::Client,
+    origin: String,
 }
 
 impl GitHubDirectory {
@@ -148,6 +149,7 @@ impl GitHubDirectory {
             repository: repository.into(),
             credentials,
             http,
+            origin: "https://api.github.com".into(),
         })
     }
 
@@ -159,14 +161,14 @@ impl GitHubDirectory {
         cancel: &CancellationToken,
     ) -> Result<(u16, Vec<u8>)> {
         bounded(cancel, Duration::from_secs(10), async {
-            let token = self.credentials.management(cancel).await?;
+            let token = self.credentials.discovery(cancel).await?;
             let mut request = self
                 .http
                 .request(
                     method,
                     format!(
-                        "https://api.github.com/repos/{}/actions/variables{suffix}",
-                        self.repository
+                        "{}/repos/{}/actions/variables{suffix}",
+                        self.origin, self.repository
                     ),
                 )
                 .bearer_auth(&token.0)
@@ -304,6 +306,16 @@ impl Directory for GitHubDirectory {
 pub struct DirectorySync {
     directory: Arc<dyn Directory>,
     published: Option<Advertisement>,
+    status: DirectoryStatus,
+}
+
+/// Public discovery results, independent of active peer transports.
+#[derive(Clone, Debug, Serialize)]
+pub struct DirectoryStatus {
+    /// Fixed display state, without provider diagnostics.
+    pub state: String,
+    /// Valid candidates returned by the last successful refresh.
+    pub candidates: usize,
 }
 
 impl DirectorySync {
@@ -313,7 +325,17 @@ impl DirectorySync {
         Self {
             directory,
             published: None,
+            status: DirectoryStatus {
+                state: "Waiting".into(),
+                candidates: 0,
+            },
         }
+    }
+
+    /// Read the latest public refresh outcome.
+    #[must_use]
+    pub fn status(&self) -> &DirectoryStatus {
+        &self.status
     }
 
     /// Publish and read once. Failures do not stop the coordinator's active streams.
@@ -321,6 +343,29 @@ impl DirectorySync {
     /// # Errors
     /// Returns unavailable discovery or rejected local persistence.
     pub async fn refresh(
+        &mut self,
+        coordinator: &mut PeerCoordinator,
+        now: u64,
+        cancel: &CancellationToken,
+    ) -> Result<()> {
+        if !coordinator.status().enabled {
+            self.status = DirectoryStatus {
+                state: "Stopped".into(),
+                candidates: 0,
+            };
+            return Ok(());
+        }
+        let result = self.refresh_once(coordinator, now, cancel).await;
+        self.status.state = if result.is_ok() {
+            "Active"
+        } else {
+            "Unavailable; peer synchronization continues"
+        }
+        .into();
+        result
+    }
+
+    async fn refresh_once(
         &mut self,
         coordinator: &mut PeerCoordinator,
         now: u64,
@@ -334,6 +379,7 @@ impl DirectorySync {
             self.directory.publish(&advertisement, now, cancel).await?;
         }
         let candidates = self.directory.read(&space, now, cancel).await?;
+        self.status.candidates = candidates.len();
         coordinator.discover(&candidates).await
     }
 
@@ -349,3 +395,7 @@ impl DirectorySync {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "discovery_tests.rs"]
+mod tests;

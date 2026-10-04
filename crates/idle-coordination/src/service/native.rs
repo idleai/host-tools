@@ -16,6 +16,7 @@ use crate::{
     engine::Engine,
     peer::{PeerCoordinator, PeerOptions},
     persistence::FilePersistence,
+    transport::Credentials,
 };
 
 use super::Service;
@@ -39,6 +40,9 @@ pub struct Configuration {
     /// Environment variable containing a private GitHub management credential.
     /// Omit to use `IDLE_TUNNELS_GITHUB_TOKEN`; guest connections do not read it.
     pub credential_variable: Option<String>,
+    /// Retrieve credentials on demand through this private framed host connection.
+    #[serde(default)]
+    pub host_credentials: bool,
     /// Explicit GitHub `owner/repository` directory. Omit to disable discovery.
     pub discovery_repository: Option<String>,
     /// Explicitly resume retained consent/grants after restart, without new approval.
@@ -52,6 +56,20 @@ impl Configuration {
     /// # Errors
     /// Rejects changed identities, corrupt/private state, duplicate owners or failed cleanup.
     pub async fn open(self) -> Result<Service> {
+        let credentials = Arc::new(EnvironmentCredentials {
+            variable: self
+                .credential_variable
+                .clone()
+                .unwrap_or_else(|| "IDLE_TUNNELS_GITHUB_TOKEN".into()),
+        });
+        self.open_with_credentials(credentials).await
+    }
+
+    /// Open using an authenticated host's credential adapter.
+    ///
+    /// # Errors
+    /// Rejects invalid storage, bindings or failed startup recovery.
+    pub async fn open_with_credentials(self, credentials: Arc<dyn Credentials>) -> Result<Service> {
         let storage = Arc::new(FilePersistence::open(&self.state_directory)?);
         let clock = Arc::new(SystemClock);
         let principal = Principal {
@@ -70,11 +88,6 @@ impl Configuration {
             chain: self.chain_directory,
             device_directory: self.device_directory,
         };
-        let credentials = Arc::new(EnvironmentCredentials {
-            variable: self
-                .credential_variable
-                .unwrap_or_else(|| "IDLE_TUNNELS_GITHUB_TOKEN".into()),
-        });
         let relay = Arc::new(DevTunnels::new(
             credentials.clone(),
             storage.clone(),

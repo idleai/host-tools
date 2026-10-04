@@ -87,6 +87,7 @@ Create a trusted local configuration, replacing paths and stable IDs:
   },
   "runtime": null,
   "credential_variable": "IDLE_TUNNELS_GITHUB_TOKEN",
+  "host_credentials": false,
   "discovery_repository": null,
   "resume_sharing": false
 }
@@ -102,6 +103,28 @@ to your native client. Hosting reads the named credential variable for each
 management request; guest connections use only their invitation grant. Embedding
 hosts can implement `Credentials::renew`. The executable cannot renew guest grants
 itself, so an expired connection needs a fresh invitation.
+
+Editor hosts can set `host_credentials: true` and call `serve_configuration`.
+The native service then requests fresh authorization on its private process pipe,
+including during startup cleanup, command execution and background renewal:
+
+```json
+{"kind":"credential","data":{"id":"1","purpose":"management"}}
+```
+
+The host replies on stdin with the same ID and a token, or `null` for denial:
+
+```json
+{"kind":"credential","data":{"id":"1","token":null}}
+```
+
+The two purposes are `management` and `discovery`; the host selects and rechecks
+the required account and permissions separately. Tokens are limited to 64 KiB;
+at most eight callbacks can be pending, with a twenty-second deadline. EOF and
+cancellation retire their slots. Hosts must service these callbacks while waiting
+for ordinary responses. The standard `service::Client` is for connections using
+injected or environment credentials; an editor provides the multiplexed host
+adapter. Tokens stay out of configuration files, process arguments and status.
 
 ## Framed API
 
@@ -144,11 +167,14 @@ through their original keys.
 | `check_access`, `validate_control` | Exact resource scope or controller fence; current authorization only. |
 | `presence`, `publish_presence`, `remove_presence` | Fresh entries, one attributed entry, or its connection ID. |
 | `sharing_status`, `join_request` | Credential-free state or an encoded device join request. |
+| `inspect_request`, `inspect_invitation` | Validate encoded text before presenting approval. Invitation results remain private. |
+| `sharing_scope`, `devices` | Read the existing outgoing boundary and approved devices. |
+| `import_sharing`, `import_cleanup`, `cleanup` | Import a prior private session, retain cleanup markers, or retry pending owned-resource deletion. |
 | `host` | `{request, scope}` to a private encoded invitation. |
 | `join` | `{invitation, scope}`; explicitly accept the invitation for this device. |
 | `scope` | `"keep"`, `"all"` or `"from_now"`; drain workers before changing consent. |
 | `resume`, `reconnect`, `suspend`, `stop`, `revoke` | Existing approval lifecycle; revoke takes an exact device fingerprint. |
-| `discover` | Refresh the explicitly configured directory. |
+| `configure_directory`, `discover` | Select an explicitly approved `owner/repository` (or `null` to disable), then refresh it. |
 | `prepare_adoption`, `pending_adoption`, `finish_adoption` | Freeze for a named destination, inspect the package, or reconcile through an injected managed adapter. |
 
 See [Command](../crates/idle-coordination/src/service/mod.rs), the
@@ -187,6 +213,20 @@ even if its journal fails, and clears saved sharing only after recording the sto
 Failed deletion is retried on reopen; suspension retains the relay for resumption.
 Uncertain creates remain recorded through the expiry window. Cleanup failures are
 reported; a crash may leave a relay until restart or server-side expiration.
+
+A host migration passes version-one saved sharing over the private pipe with
+`import_sharing`. The coordinator checks the existing engine identity, approved
+devices and exact active scope before persisting it. Import itself leaves sharing
+disabled. A durable receipt makes retries idempotent even after revocation or
+Stop, so a lost acknowledgement cannot restore older grants. The previous host
+removes its copy only after acknowledgement. `import_cleanup` durably transfers
+validated resource markers; a retained host is excluded from cleanup even before
+its marker has an exact resource locator. Ambiguous marker lookup is refused.
+
+`sharing_status` includes native connection IDs, durable-change counters and the
+last configured directory outcome. These public fields support host status views
+without exposing invitations or credentials. A suspended owner performs no new
+directory reads.
 
 Optional `discovery_repository` uses GitHub Actions repository variables, with
 suitable GitHub permissions, refreshed every minute. Protocol-3 `EDITCHAIN_PEER_`

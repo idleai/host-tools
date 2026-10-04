@@ -627,3 +627,168 @@ async fn invitations_and_public_discovery_keep_existing_shapes_and_limits() -> s
     )?;
     pair.stop().await
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn host_migration_keeps_identity_consent_and_stop_wins_over_a_lost_ack() -> support::TestResult
+{
+    let mut pair = Pair::new().await?;
+    let encoded = pair.connect(ScopeChoice::FromNow).await?;
+    let identity = pair.right_engine.identity().await?;
+    let scope = pair.right_engine.scope().await?;
+    let approved = pair
+        .right_engine
+        .devices(&pair.right.status().space.ok_or(Error::Invalid)?)
+        .await?;
+    let saved: SavedSharing = serde_json::from_slice(
+        &pair
+            .right_storage
+            .load("saved-sharing")?
+            .ok_or(Error::Invalid)?,
+    )?;
+    pair.right.suspend().await?;
+    let storage = Arc::new(Memory::default());
+    let mut migrated = pair
+        .relay
+        .coordinator(
+            pair.right_engine.clone(),
+            storage.clone(),
+            pair.credentials.clone(),
+        )
+        .await?;
+    let mut changed = saved.clone();
+    changed.peers.first_mut().ok_or(Error::Invalid)?.guest = "wrong-device".into();
+    equal!(
+        migrated.import_saved(changed).await,
+        Err(Error::Forbidden),
+        "import cannot readdress a grant"
+    )?;
+    migrated.import_saved(saved.clone()).await?;
+    ensure!(
+        !migrated.status().enabled,
+        "import never grants new approval or enables sharing"
+    )?;
+    migrated.import_saved(saved.clone()).await?;
+    migrated.resume().await?;
+    equal!(
+        pair.right_engine.identity().await?,
+        identity,
+        "migration keeps the exact device key"
+    )?;
+    equal!(
+        pair.right_engine.scope().await?,
+        scope,
+        "migration cannot reset the outgoing cutoff"
+    )?;
+    equal!(
+        pair.right_engine.devices(&saved.space).await?,
+        approved,
+        "migration keeps existing device approvals"
+    )?;
+    let host = migrated.inspect_invitation(&encoded)?.host;
+    migrated.revoke(&host.fingerprint).await?;
+    migrated.import_saved(saved.clone()).await?;
+    ensure!(
+        pair.right_engine.devices(&saved.space).await?.is_empty(),
+        "a retried migration cannot reenroll a revoked device"
+    )?;
+    migrated.stop().await?;
+    migrated.import_saved(saved).await?;
+    equal!(
+        migrated.resume().await,
+        Err(Error::Invalid),
+        "a lost import acknowledgement cannot undo Stop"
+    )?;
+    ensure!(
+        storage.load("saved-sharing")?.is_none(),
+        "Stop removes native resumption"
+    )?;
+    pair.left.stop().await?;
+    Ok(())
+}
+
+#[derive(Debug, Default)]
+struct UnavailableDirectory {
+    failed: std::sync::atomic::AtomicBool,
+    removals: std::sync::atomic::AtomicU64,
+}
+
+#[async_trait::async_trait]
+impl idle_coordination::discovery::Directory for UnavailableDirectory {
+    async fn read(
+        &self,
+        _space: &str,
+        _now: u64,
+        _cancel: &CancellationToken,
+    ) -> Result<Vec<Advertisement>> {
+        if self.failed.load(Ordering::SeqCst) {
+            Err(Error::Transport)
+        } else {
+            Ok(Vec::new())
+        }
+    }
+    async fn publish(
+        &self,
+        _value: &Advertisement,
+        _now: u64,
+        _cancel: &CancellationToken,
+    ) -> Result<()> {
+        if self.failed.load(Ordering::SeqCst) {
+            Err(Error::Transport)
+        } else {
+            Ok(())
+        }
+    }
+    async fn remove(&self, _value: &Advertisement, _cancel: &CancellationToken) -> Result<()> {
+        let _count = self.removals.fetch_add(1, Ordering::SeqCst);
+        if self.failed.load(Ordering::SeqCst) {
+            Err(Error::Transport)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn directory_failure_keeps_peer_streams_and_retries_only_its_own_public_entry()
+-> support::TestResult {
+    let mut pair = Pair::new().await?;
+    let _invitation = pair.connect(ScopeChoice::All).await?;
+    pair.converged(2, 2).await;
+    let adapter = Arc::new(UnavailableDirectory::default());
+    let mut directory = idle_coordination::discovery::DirectorySync::new(adapter.clone());
+    directory
+        .refresh(&mut pair.left, NOW, &CancellationToken::new())
+        .await?;
+    adapter.failed.store(true, Ordering::SeqCst);
+    equal!(
+        directory
+            .refresh(&mut pair.left, NOW, &CancellationToken::new())
+            .await,
+        Err(Error::Transport),
+        "directory failure remains separate from peer recovery"
+    )?;
+    ensure!(
+        pair.left.status().enabled
+            && pair.left.status().peers.iter().any(|peer| peer
+                .progress
+                .as_ref()
+                .is_some_and(|progress| progress.accepted)),
+        "discovery outages leave authenticated streams alone"
+    )?;
+    equal!(
+        directory.stop(&CancellationToken::new()).await,
+        Err(Error::Transport),
+        "failed withdrawal remains retryable"
+    )?;
+    adapter.failed.store(false, Ordering::SeqCst);
+    directory.stop(&CancellationToken::new()).await?;
+    directory.stop(&CancellationToken::new()).await?;
+    equal!(
+        adapter.removals.load(Ordering::SeqCst),
+        2,
+        "successful withdrawal retires the exact published entry"
+    )?;
+    pair.left.stop().await?;
+    pair.right.stop().await?;
+    Ok(())
+}

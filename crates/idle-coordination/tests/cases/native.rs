@@ -78,6 +78,7 @@ async fn automatic_resume_keeps_a_completed_stop_disabled() -> support::TestResu
         workspace: support::workspace(),
         contributor: principal("owner").contributor,
         runtime: None,
+        host_credentials: false,
         credential_variable: None,
         discovery_repository: None,
         resume_sharing: true,
@@ -200,6 +201,7 @@ async fn standalone_executable_serves_and_recovers_without_node_or_application_h
         workspace: support::workspace(),
         contributor: owner.contributor.clone(),
         runtime: None,
+        host_credentials: false,
         credential_variable: Some("UNUSED_TEST_OWNER_CREDENTIAL".into()),
         discovery_repository: None,
         resume_sharing: false,
@@ -482,5 +484,81 @@ async fn rust_coordinator_replicates_with_existing_typescript_peer_bridge() -> s
         .await
         .map_err(|_error| Error::Timeout)?
         .map_err(|_error| Error::Transport)??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn startup_cleanup_can_request_host_credentials_before_the_first_service_response()
+-> support::TestResult {
+    use idle_coordination::{
+        persistence::Persistence as _,
+        service::{CredentialReply, Message, ServiceRequest, serve_configuration, write_frame},
+    };
+    let root = tempfile::tempdir()?;
+    let engine = support::engine(root.path());
+    let storage = support::storage(root.path())?;
+    storage.compare_exchange("relay-journal", None, Some(&serde_json::to_vec(&serde_json::json!([{
+        "marker": "idle-relay-0123456789abcdef01234567", "lease": null, "created_at": SystemClock.now_ms()?,
+    }]))?))?;
+    drop(storage);
+    let owner = principal("owner");
+    let config = Configuration {
+        state_directory: root.path().join("private"),
+        chain_directory: engine.chain,
+        device_directory: engine.device_directory,
+        workspace: support::workspace(),
+        contributor: owner.contributor,
+        runtime: None,
+        credential_variable: None,
+        host_credentials: true,
+        discovery_repository: None,
+        resume_sharing: false,
+    };
+    let (mut host, native) = tokio::io::duplex(65_536);
+    let (reader, writer) = tokio::io::split(native);
+    let serving = tokio::spawn(async move {
+        serve_configuration(config, reader, writer, &CancellationToken::new()).await
+    });
+    write_frame(
+        &mut host,
+        &Message::Call(ServiceRequest {
+            version: 1,
+            id: "first".into(),
+            timeout_ms: 5000,
+            command: Command::Versions,
+        }),
+    )
+    .await?;
+    let callback: Value = tokio::time::timeout(Duration::from_secs(5), read_frame(&mut host))
+        .await??
+        .ok_or(Error::Invalid)?;
+    equal!(
+        callback.pointer("/data/purpose").and_then(Value::as_str),
+        Some("management"),
+        "startup cleanup must use the host callback, without an environment token"
+    )?;
+    let id = callback
+        .pointer("/data/id")
+        .and_then(Value::as_str)
+        .ok_or(Error::Invalid)?
+        .to_owned();
+    write_frame(
+        &mut host,
+        &Message::Credential(CredentialReply { id, token: None }),
+    )
+    .await?;
+    let reply: Value = read_frame(&mut host).await?.ok_or(Error::Invalid)?;
+    equal!(
+        reply.get("id").and_then(Value::as_str),
+        Some("first"),
+        "denied cleanup must not deadlock startup or lose the queued request"
+    )?;
+    ensure!(
+        reply.pointer("/result/Ok/engine_peer").is_some(),
+        "the ordinary service remains usable"
+    )?;
+    drop(host);
+    let result = tokio::time::timeout(Duration::from_secs(5), serving).await??;
+    ensure!(result.is_err(), "denied cleanup remains pending after EOF")?;
     Ok(())
 }

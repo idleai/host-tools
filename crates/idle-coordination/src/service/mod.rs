@@ -1,5 +1,6 @@
 //! Native service commands over an authenticated, host-owned local connection.
 
+mod credentials;
 mod framing;
 pub mod native;
 
@@ -22,15 +23,18 @@ use crate::{
         Authority, Principal,
         adoption::{HistoryConsent, ManagedAdoption},
     },
-    discovery::DirectorySync,
+    discovery::{DirectorySync, GitHubDirectory},
     engine::{Engine, ScopeChoice},
-    invitation::Secret,
+    invitation::{JoinRequest, SavedSharing, Secret},
     peer::PeerCoordinator,
 };
 
 pub use framing::{
-    Client, Message, ServiceRequest, ServiceResponse, read_frame, serve, write_frame,
+    Client, Message, ServiceRequest, ServiceResponse, read_frame, serve, serve_configuration,
+    write_frame,
 };
+
+pub use credentials::{CredentialPurpose, CredentialReply, CredentialRequest};
 
 /// Local service framing version, independent of repository and peer protocols.
 pub const SERVICE_VERSION: u16 = 1;
@@ -69,6 +73,22 @@ pub enum Command {
     SharingStatus,
     /// Construct a join request for the persistent local device.
     JoinRequest,
+    /// Validate a public request before the host presents approval.
+    InspectRequest(Secret),
+    /// Validate a private invitation before the host presents approval.
+    InspectInvitation(Secret),
+    /// Read the existing outgoing consent boundary.
+    SharingScope,
+    /// List the engine's existing approved devices.
+    Devices,
+    /// Import a previous host's private saved session; never grants consent.
+    ImportSharing(Box<SavedSharing>),
+    /// Durably transfer pending relay cleanup markers.
+    ImportCleanup(Vec<String>),
+    /// Retry pending relay cleanup without removing retained hosts.
+    Cleanup,
+    /// Configure explicitly approved discovery for this connection.
+    ConfigureDirectory(Option<String>),
     /// Explicitly approve a guest and create/resume a private relay.
     Host {
         /// Invitation-channel join request from the exact guest.
@@ -178,8 +198,50 @@ impl Service {
                     .remove_presence(&self.principal, &connection)?;
                 value(&())
             }
-            Command::SharingStatus => value(&self.peers.status()),
+            Command::SharingStatus => {
+                let mut status = value(&self.peers.status())?;
+                if let Some(directory) = &self.directory {
+                    let _previous = status
+                        .as_object_mut()
+                        .ok_or(Error::Invalid)?
+                        .insert("discovery".into(), value(directory.status())?);
+                }
+                Ok(status)
+            }
             Command::JoinRequest => value(&self.peers.join_request()?),
+            Command::InspectRequest(request) => value(&JoinRequest::parse(&request.0)?),
+            Command::InspectInvitation(invitation) => {
+                value(&self.peers.inspect_invitation(&invitation.0)?)
+            }
+            Command::SharingScope => value(&self.engine.scope().await?),
+            Command::Devices => {
+                let scope = self.engine.scope().await?.ok_or(Error::Invalid)?;
+                value(&self.engine.devices(&scope.space).await?)
+            }
+            Command::ImportSharing(saved) => {
+                self.peers.import_saved(*saved).await?;
+                value(&())
+            }
+            Command::ImportCleanup(markers) => {
+                self.peers.import_cleanup(&markers)?;
+                value(&())
+            }
+            Command::Cleanup => {
+                self.peers.cleanup(cancel).await?;
+                value(&())
+            }
+            Command::ConfigureDirectory(repository) => {
+                let next = repository
+                    .map(|name| {
+                        GitHubDirectory::new(&name, self.peers.credentials())
+                            .map(|directory| DirectorySync::new(Arc::new(directory)))
+                    })
+                    .transpose()?;
+                self.remove_directory(cancel).await?;
+                self.directory = next;
+                self.refresh_directory(cancel).await?;
+                value(&())
+            }
             Command::Host { request, scope } => {
                 value(&self.peers.host_history(&request.0, scope, cancel).await?)
             }
