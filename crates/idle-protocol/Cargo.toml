@@ -1,6 +1,7 @@
 [package]
+publish = ["idle-host-tools"]
 name = "idle-protocol"
-version = "0.1.0"
+version.workspace = true
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
@@ -11,6 +12,7 @@ keywords = ["idle", "coordination", "protocol"]
 categories = ["api-bindings"]
 
 [features]
+fixtures = []
 schema = ["dep:schemars"]
 reflection = ["dep:facet"]
 

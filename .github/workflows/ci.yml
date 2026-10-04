@@ -1,6 +1,7 @@
 name: CI
 on:
   push:
+    branches: ["**"]
   pull_request:
   workflow_dispatch:
 
@@ -18,18 +19,6 @@ jobs:
         with:
           path: host-tools
           persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: idleai/editchain
-          ref: 25d2494549cee57717280756d26688704912e5c0
-          path: editchain
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: idleai/codex-evo
-          ref: 903d7f1c62c621cf1f925362ac88893ec1f36b07
-          path: codex
-          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.97.0
@@ -37,10 +26,7 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            host-tools -> target
-            editchain -> target
-            codex/tools/codex-session-exporter -> target
+          workspaces: "host-tools -> target"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

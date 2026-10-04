@@ -1,0 +1,46 @@
+name: Update released artifacts
+on:
+  schedule:
+    - cron: '23 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: update-released-artifacts
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Resolve complete compatible releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/update-releases.py
+      - uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        id: pr
+        with:
+          branch: deps/released-artifacts
+          title: 'build(deps): update released artifacts'
+          commit-message: 'build(deps): update released artifacts'
+          body: 'Update compatible Cargo packages, producer releases and their SHA-256 checksums. The standard CI checks validate the resulting assembly.'
+          add-paths: |
+            Cargo.lock
+            native-dependencies.json
+            consumer-dependencies.json
+      - name: Run CI for the generated dependency PR
+        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run ci.yml --ref deps/released-artifacts

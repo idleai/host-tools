@@ -40,7 +40,11 @@ highlight = "all"
 [sources]
 unknown-registry = "warn"
 unknown-git = "deny"
-allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-registry = [
+    "https://github.com/rust-lang/crates.io-index",
+    "https://raw.githubusercontent.com/idleai/editchain/cargo-index/",
+    "https://raw.githubusercontent.com/idleai/host-tools/cargo-index/",
+]
 allow-git = [
     "https://github.com/microsoft/dev-tunnels",
     "https://github.com/microsoft/vscode-russh",

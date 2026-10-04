@@ -51,7 +51,7 @@ consuming workspace root: copy both `[patch]` tables from this repository's
 commit the resulting lockfile. Instantiate `Authority` and `PeerCoordinator`
 directly, or construct a `Service` with your authenticated principal and adapters.
 
-Build from this checkout with the sibling EditChain checkout:
+Build from this checkout; Cargo resolves the released EditChain packages:
 
 ```sh
 cargo build --locked -p idle-coordination --bin idle-coordination
