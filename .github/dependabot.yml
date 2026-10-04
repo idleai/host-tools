@@ -1,13 +1,16 @@
 version: 2
 registries:
+  # Public indexes need no credentials; Dependabot requires a token field.
   idle-editchain:
     type: cargo-registry
     registry: idle-editchain
     url: https://raw.githubusercontent.com/idleai/editchain/cargo-index/
+    token: anonymous
   idle-host-tools:
     type: cargo-registry
     registry: idle-host-tools
     url: https://raw.githubusercontent.com/idleai/host-tools/cargo-index/
+    token: anonymous
 updates:
   - package-ecosystem: cargo
     registries: "*"
