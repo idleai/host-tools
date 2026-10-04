@@ -13,7 +13,13 @@
     },
     "codex-exporter": {
       "repository": "idleai/codex-evo",
-      "tag": "codex-session-exporter-v0.1.0"
+      "tag": "codex-session-exporter-v0.1.1",
+      "sha256": {
+        "linux-x64": "14d163b2927fed97d37572006edce5a0528bb6e59ce04927340fb99ed5623917",
+        "darwin-x64": "a466430ab6424c820611ae2b6eec529d36c14ffc3d2ba4d07e53f2b0a8d8cbad",
+        "darwin-arm64": "5624b6cd511b58d5a1b7a20889bdece609427328fbe9dc5066f403a480911ef9",
+        "win32-x64": "657d87bfeec51c35058cee53f989c128f0262b74cb2ed4053b732b58dfe08338"
+      }
     }
   }
 }
