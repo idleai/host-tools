@@ -267,3 +267,102 @@ fn changing_one_source_removes_only_its_rows_and_marks_the_result_partial() {
         "lost coverage is explicit"
     );
 }
+
+#[test]
+fn missing_or_corrupt_original_bytes_remove_only_affected_rows_and_can_recover() {
+    for corrupt in [false, true] {
+        let directory = tempfile::tempdir().expect("chain");
+        let raw = b"[{\"id\":42,\"title\":\"Task\"}]";
+        let affected = super::records::capture(
+            directory.path(),
+            "repo",
+            "https://api.github.com/repos/owner/repo/issues",
+            raw,
+        )
+        .expect("stored response");
+        let healthy = super::records::capture(
+            directory.path(),
+            "repo",
+            "https://api.github.com/repos/owner/repo/check-runs",
+            b"[]",
+        )
+        .expect("independent response");
+        let mut queries = Engine::open(directory.path())
+            .expect("chain")
+            .queries()
+            .expect("queries");
+        let inputs = vec![ProjectionInput {
+            kind: ProjectionKind::Task,
+            freshness: ProjectionFreshness {
+                status: FreshnessStatus::Current,
+                generated_at: None,
+                checkpoint: None,
+            },
+            availability: ProjectionAvailability::Complete,
+            total: Some(ProjectionCount(2)),
+            rows: [affected.clone(), healthy.clone()]
+                .into_iter()
+                .enumerate()
+                .map(|(index, source)| ProjectionRow {
+                    key: index.to_string(),
+                    title: "Task".into(),
+                    summary: None,
+                    url: None,
+                    status: None,
+                    labels: Vec::new(),
+                    sources: vec![source],
+                    related: Vec::new(),
+                })
+                .collect(),
+            gaps: Vec::new(),
+        }];
+        super::validate_sources(&queries, &inputs).expect("readable Originals");
+        let file = directory
+            .path()
+            .join("blobs")
+            .join(blake3::hash(raw).to_hex().to_string());
+        if corrupt {
+            std::fs::write(&file, b"damaged").expect("corrupt source");
+        } else {
+            std::fs::remove_file(&file).expect("remove source");
+        }
+        assert!(
+            super::validate_sources(&queries, &inputs).is_err(),
+            "missing or corrupt bytes cannot pass source validation"
+        );
+        let checked = super::checked_inputs(&queries, &inputs);
+        let result = checked.first().expect("input");
+        assert_eq!(
+            result.availability,
+            ProjectionAvailability::Partial,
+            "lost content reduces coverage"
+        );
+        assert_eq!(
+            result.freshness.status,
+            FreshnessStatus::Unknown,
+            "lost content cannot remain current"
+        );
+        assert!(
+            result.total.is_none(),
+            "the complete total is no longer available"
+        );
+        assert_eq!(result.rows.len(), 1, "independent rows remain readable");
+        assert_eq!(
+            result.rows.first().expect("healthy row").sources,
+            vec![healthy],
+            "only the affected row is removed"
+        );
+        assert_eq!(
+            result.gaps.first().expect("gap").reference,
+            Some(affected),
+            "the gap retains the exact source address"
+        );
+        std::fs::write(file, raw).expect("restore source bytes");
+        let _changes = queries.refresh().expect("refresh restored content");
+        assert_eq!(
+            super::checked_inputs(&queries, &inputs),
+            inputs,
+            "source validation is fresh on the next read"
+        );
+    }
+}

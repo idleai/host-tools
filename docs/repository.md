@@ -46,7 +46,10 @@ bytes and to its HTTPS source page. Projection rows over eight KiB are omitted
 with partial coverage; the complete response remains in history. Before showing
 rows, the native history reader verifies their full observation/item IDs and
 stored hashes against the accepted chain. Missing, changed or quarantined sources
-remove only affected rows and add gaps. Activity remains an independent engine
+remove only affected rows and add gaps. Original bytes must also resolve and
+match their recorded hash; missing or corrupt blobs reduce coverage even while
+their operation record is still accepted. Each Original is checked once per
+replacement and checked again on later reads. Activity remains an independent engine
 read if the repository adapter fails. GitHub categories do not imply controller
 state or Idle permissions.
 
