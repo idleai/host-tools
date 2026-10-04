@@ -19,7 +19,7 @@ idle-history = { registry = "idle-host-tools", version = "0.1.0", path = "../idl
 idle-protocol = { registry = "idle-host-tools", version = "0.1.0", path = "../idle-protocol" }
 editchain-sync = { registry = "idle-editchain", version = "0.1.0" }
 async-trait = "0.1"
-base64 = "0.22"
+base64 = "0.23"
 blake3 = "1"
 sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
