@@ -1,0 +1,452 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RepositorySnapshot",
+  "description": "Atomic repository replacement scoped to one host-installed binding.",
+  "type": "object",
+  "properties": {
+    "account": {
+      "description": "Account used for this read; absent for public unauthenticated access.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "checked_at_ms": {
+      "description": "Epoch milliseconds of this snapshot attempt.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "checkout": {
+      "description": "Read-only local checkout details, if available.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GitCheckout"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "collaborators": {
+      "description": "Accessible GitHub collaborator entries, without Idle grants.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/GithubPerson"
+      }
+    },
+    "contributors": {
+      "description": "GitHub contribution history, distinct from collaboration access.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/GithubPerson"
+      }
+    },
+    "git_authors": {
+      "description": "Git authors within the read's declared bounds.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/GitAuthor"
+      }
+    },
+    "github": {
+      "description": "GitHub metadata, if the remote and current credentials support it.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GithubRepository"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reports": {
+      "description": "Source availability and explicit bounds, including known empty results.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ReadReport"
+      }
+    },
+    "scope": {
+      "description": "Exact scope requested by the client and installed by the host.",
+      "$ref": "#/$defs/RepositoryScope"
+    },
+    "sessions": {
+      "description": "Local and imported recorded session items.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RecordedSession"
+      }
+    }
+  },
+  "required": [
+    "scope",
+    "checked_at_ms",
+    "git_authors",
+    "contributors",
+    "collaborators",
+    "sessions",
+    "reports"
+  ],
+  "$defs": {
+    "GitAuthor": {
+      "description": "A recorded Git author in the declared bounded commit history.",
+      "type": "object",
+      "properties": {
+        "commits": {
+          "description": "Commits in this read, not a repository-wide total.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "email": {
+          "description": "Author email recorded in commits.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Author name recorded in commits, without identity merging.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "email",
+        "commits"
+      ]
+    },
+    "GitCheckout": {
+      "description": "The selected checkout, read locally without fetching or changing Git state.",
+      "type": "object",
+      "properties": {
+        "branch": {
+          "description": "Current branch; absent for a detached HEAD.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "common_directory": {
+          "description": "Shared Git directory, when linked worktrees share objects and refs.",
+          "type": "string"
+        },
+        "git_directory": {
+          "description": "Checkout-specific Git directory, distinct in linked worktrees.",
+          "type": "string"
+        },
+        "head": {
+          "description": "Full commit ID; absent on an unborn branch.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remote": {
+          "description": "Sanitized remote location with user information and query removed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remote_name": {
+          "description": "Chosen branch remote or `origin`, if configured.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "root": {
+          "description": "Resolved repository top-level directory.",
+          "type": "string"
+        },
+        "status": {
+          "description": "Worktree counts, absent if the bounded status read failed.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorktreeStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "root",
+        "git_directory",
+        "common_directory"
+      ]
+    },
+    "GithubPerson": {
+      "description": "A GitHub account listed by a contributor or collaborator endpoint.",
+      "type": "object",
+      "properties": {
+        "contributions": {
+          "description": "Supplied contribution count, distinct from live activity.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "id": {
+          "description": "Stable numeric GitHub account identity represented as text.",
+          "type": "string"
+        },
+        "login": {
+          "description": "Supplied account login.",
+          "type": "string"
+        },
+        "role": {
+          "description": "GitHub repository role, never an Idle access grant.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "description": "HTTPS account page.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "login",
+        "url"
+      ]
+    },
+    "GithubRepository": {
+      "description": "GitHub repository metadata; no Idle permissions are derived from it.",
+      "type": "object",
+      "properties": {
+        "default_branch": {
+          "description": "Default branch supplied by GitHub.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Supplied short description.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "full_name": {
+          "description": "Canonical owner and repository name supplied by GitHub.",
+          "type": "string"
+        },
+        "url": {
+          "description": "HTTPS repository page.",
+          "type": "string"
+        },
+        "visibility": {
+          "description": "Repository visibility supplied by GitHub.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "full_name",
+        "url",
+        "default_branch",
+        "visibility"
+      ]
+    },
+    "ReadReport": {
+      "description": "Scope, bounds and currentness of a single source read.",
+      "type": "object",
+      "properties": {
+        "checked_at_ms": {
+          "description": "Epoch milliseconds when this read was attempted; not a durable cursor.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "message": {
+          "description": "Human-readable scope, bound or failure reason.",
+          "type": "string"
+        },
+        "retry_at_ms": {
+          "description": "Earliest retry supplied by the service, if known.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "source_url": {
+          "description": "Public HTTPS source location without credentials.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "description": "Completeness within the declared scope.",
+          "$ref": "#/$defs/ReadState"
+        },
+        "topic": {
+          "description": "Stable source category such as `git.authors` or `github.issues`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic",
+        "state",
+        "message",
+        "checked_at_ms"
+      ]
+    },
+    "ReadState": {
+      "description": "Whether the named read covers its declared scope.",
+      "oneOf": [
+        {
+          "description": "All results within the stated query scope were read.",
+          "type": "string",
+          "const": "complete"
+        },
+        {
+          "description": "The read reached a limit or one part failed.",
+          "type": "string",
+          "const": "partial"
+        },
+        {
+          "description": "No usable result is available.",
+          "type": "string",
+          "const": "unavailable"
+        },
+        {
+          "description": "This repository has no applicable source for the read.",
+          "type": "string",
+          "const": "not_applicable"
+        }
+      ]
+    },
+    "RecordedSession": {
+      "description": "A recorded session item, without inferring current execution or ordering.",
+      "type": "object",
+      "properties": {
+        "actions": {
+          "description": "Recorded lifecycle observations, never a claim that a runtime is alive.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "id": {
+          "description": "Full logical session identity used by the history filter.",
+          "type": "string"
+        },
+        "labels": {
+          "description": "Distinct recorded labels; conflicting or changing titles remain visible.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "records": {
+          "description": "Exact accepted session observations within this bounded read.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceRecord"
+          }
+        },
+        "sources": {
+          "description": "Original provider names, or the direct recorder identity.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "labels",
+        "actions",
+        "sources",
+        "records"
+      ]
+    },
+    "RepositoryScope": {
+      "description": "One explicit host-installed repository and logical chain.",
+      "type": "object",
+      "properties": {
+        "chain": {
+          "description": "Logical history chain.",
+          "type": "string"
+        },
+        "repository_id": {
+          "description": "Host-installed repository identity, including checkout isolation.",
+          "type": "string"
+        },
+        "workspace_id": {
+          "description": "Workspace visibility boundary.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "repository_id",
+        "chain"
+      ]
+    },
+    "SourceRecord": {
+      "description": "Full address of a single accepted stored representation.",
+      "type": "object",
+      "properties": {
+        "item": {
+          "description": "Full logical item identity.",
+          "type": "string"
+        },
+        "observation": {
+          "description": "Full 256-bit observation identity.",
+          "type": "string"
+        },
+        "record_hash": {
+          "description": "Full digest of the exact stored encoding.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "observation",
+        "item",
+        "record_hash"
+      ]
+    },
+    "WorktreeStatus": {
+      "description": "Changed paths counted from Git's porcelain output; rename pairs count once.",
+      "type": "object",
+      "properties": {
+        "conflicted": {
+          "description": "Unmerged paths.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "staged": {
+          "description": "Paths with index changes.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "unstaged": {
+          "description": "Paths with working-tree changes.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "untracked": {
+          "description": "Untracked paths or directories according to Git's normal status mode.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "staged",
+        "unstaged",
+        "untracked",
+        "conflicted"
+      ]
+    }
+  }
+}

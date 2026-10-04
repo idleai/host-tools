@@ -119,6 +119,9 @@ pub struct ProjectionRow {
     pub title: String,
     /// Optional supplied display text; drill-down uses the retained references.
     pub summary: Option<String>,
+    /// Optional public HTTPS source page, distinct from the exact history records.
+    #[serde(default)]
+    pub url: Option<String>,
     /// Opaque provider status; app-core only filters for exact equality.
     pub status: Option<String>,
     /// Opaque supplied labels; app-core never infers them from recorded text.

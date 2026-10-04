@@ -1,0 +1,29 @@
+[package]
+name = "idle-repository"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+description = "Bounded Git and GitHub reads and recorded sessions for standalone Idle workspaces"
+repository = "https://github.com/idleai/host-tools"
+readme = "../../README.md"
+keywords = ["git", "github", "idle"]
+categories = ["development-tools"]
+
+[dependencies]
+idle-protocol = { path = "../idle-protocol" }
+editchain-core = { path = "../../../editchain/crates/editchain-core" }
+editchain-engine = { path = "../../../editchain/crates/editchain-engine" }
+blake3 = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["io-std", "io-util", "macros", "process", "rt-multi-thread", "time"] }
+reqwest = { version = "0.13", default-features = false, features = ["native-tls"] }
+url = "2"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["net", "sync"] }
+
+[lints]
+workspace = true

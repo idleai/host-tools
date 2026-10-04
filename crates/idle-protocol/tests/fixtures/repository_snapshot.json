@@ -1,0 +1,45 @@
+{
+  "scope": {
+    "workspace_id": "workspace",
+    "repository_id": "repository",
+    "chain": "chain"
+  },
+  "checked_at_ms": 1000,
+  "checkout": null,
+  "github": null,
+  "account": null,
+  "git_authors": [],
+  "contributors": [],
+  "collaborators": [],
+  "sessions": [
+    {
+      "id": "abababababababababababababababababababababababababababababababab",
+      "labels": [
+        "Captured session"
+      ],
+      "actions": [
+        "Started"
+      ],
+      "sources": [
+        "local-editor"
+      ],
+      "records": [
+        {
+          "observation": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+          "item": "abababababababababababababababababababababababababababababababab",
+          "record_hash": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        }
+      ]
+    }
+  ],
+  "reports": [
+    {
+      "topic": "history.sessions",
+      "state": "complete",
+      "message": "One recorded session; no runtime status is implied.",
+      "checked_at_ms": 1000,
+      "retry_at_ms": null,
+      "source_url": null
+    }
+  ]
+}
