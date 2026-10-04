@@ -7,7 +7,7 @@ workspace has no dependency on app-core, a renderer or the VS Code API.
 | Package | Responsibility | Targets |
 | --- | --- | --- |
 | `idle-protocol` | Versioned requests, responses, events and JSON Schema shared by clients, Evo and managed/standalone services. | Native and WASM |
-| `idle-coordination` | Repository metadata, settings/rules, views, presence, grants, controller ownership and native peer coordination. Library and framed service. | Native |
+| `idle-coordination` | Repository metadata, settings/rules, views, peer activity, grants, controller ownership and native peer coordination. Library and framed service. | Native |
 | `idle-history` | Portable history queries/results, repository bindings, projection inputs, source contracts and pure peer helpers. | Native and WASM |
 | `idle-editor-capture` | Editor observation validation, conversion, archive replay and durable writer; `idle-editor-service` executable. | Native |
 | `idle-history-native` | Shared history queries, exact record/file/diff reads and author/exposure projections; `idle-history-service` executable. | Native |
