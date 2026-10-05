@@ -185,22 +185,50 @@ impl crate::projections::ProjectionMapper for RepositoryMapper<'_> {
 /// # Errors
 /// Returns malformed framing, invalid installation or transport I/O errors.
 pub fn serve(mut input: impl Read, mut output: impl Write, binding: &Binding) -> io::Result<()> {
-    validate_binding(&binding.repository).map_err(io::Error::other)?;
-    if !binding.chain_directory.is_absolute()
-        || binding
-            .retained_directory
-            .as_ref()
-            .is_some_and(|path| !path.is_absolute())
-    {
-        return Err(io::Error::other(
-            "history sources require absolute directories",
-        ));
-    }
+    let service = Service::new(binding.clone())?;
     while let Some(bytes) = idle_host_io::read_frame(&mut input, MAX_REQUEST)? {
-        let request: Envelope = serde_json::from_slice(&bytes).map_err(io::Error::other)?;
+        let bytes = service.handle(&bytes)?;
+        idle_host_io::write_frame(&mut output, &bytes, MAX_RESPONSE)?;
+    }
+    Ok(())
+}
+
+/// A history reader bound to one host-installed repository and its retained source.
+#[derive(Debug)]
+pub struct Service {
+    binding: Binding,
+}
+
+impl Service {
+    /// Validate immutable storage bindings without opening a query or retaining a lock.
+    /// # Errors
+    /// Rejects invalid repository bindings and relative storage directories.
+    pub fn new(binding: Binding) -> io::Result<Self> {
+        validate_binding(&binding.repository).map_err(io::Error::other)?;
+        if !binding.chain_directory.is_absolute()
+            || binding
+                .retained_directory
+                .as_ref()
+                .is_some_and(|path| !path.is_absolute())
+        {
+            return Err(io::Error::other(
+                "history sources require absolute directories",
+            ));
+        }
+        Ok(Self { binding })
+    }
+
+    /// Execute one bounded request, preserving the standalone service's typed replies.
+    /// # Errors
+    /// Returns malformed requests or serialization failures.
+    pub fn handle(&self, bytes: &[u8]) -> io::Result<Vec<u8>> {
+        if bytes.len() > MAX_REQUEST {
+            return Err(io::Error::other("history request exceeds its limit"));
+        }
+        let request: Envelope = serde_json::from_slice(bytes).map_err(io::Error::other)?;
         let response = Response {
             id: request.id,
-            body: execute_body(binding, request.body),
+            body: execute_body(&self.binding, request.body),
         };
         let mut bytes = serde_json::to_vec(&response).map_err(io::Error::other)?;
         if bytes.len() > MAX_RESPONSE {
@@ -213,9 +241,8 @@ pub fn serve(mut input: impl Read, mut output: impl Write, binding: &Binding) ->
             })
             .map_err(io::Error::other)?;
         }
-        idle_host_io::write_frame(&mut output, &bytes, MAX_RESPONSE)?;
+        Ok(bytes)
     }
-    Ok(())
 }
 
 fn execute(binding: &Binding, request: &Request) -> Result<Preview, Failure> {

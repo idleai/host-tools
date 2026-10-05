@@ -24,6 +24,14 @@ fn automatic_collection_has_one_owner_and_observation_releases_it() {
     let mut first = Collector::new(binding.clone()).expect("first collector");
     let mut second = Collector::new(binding).expect("second collector");
     let _initial = first.scan(Mode::Import).expect("first owner");
+    // Another thread can launch a child while this descriptor is open. Its
+    // inherited handle can outlive the parent's handle until the child execs.
+    let inherited_owner = first
+        .owner
+        .as_ref()
+        .expect("ownership handle")
+        .try_clone()
+        .expect("duplicate ownership handle");
     assert_eq!(
         second
             .scan(Mode::Import)
@@ -38,6 +46,7 @@ fn automatic_collection_has_one_owner_and_observation_releases_it() {
         .scan(Mode::Observe)
         .expect("release automatic collection");
     let _resumed = second.scan(Mode::Import).expect("new owner");
+    drop(inherited_owner);
     drop(second);
     let _recovered = first
         .scan(Mode::Import)

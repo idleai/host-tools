@@ -6,6 +6,7 @@ workspace has no dependency on app-core, a renderer or the VS Code API.
 
 | Package | Responsibility | Targets |
 | --- | --- | --- |
+| `idle-host` | One supervised process with independent capture, history, collection, repository and coordination channels. | Native |
 | `idle-protocol` | Versioned requests, responses, events and JSON Schema shared by clients, Evo and managed/standalone services. | Native and WASM |
 | `idle-coordination` | Repository metadata, settings/rules, views, peer activity, grants, controller ownership and native peer coordination. Library and framed service. | Native |
 | `idle-history` | Portable history queries/results, repository bindings, projection inputs, source contracts and pure peer helpers. | Native and WASM |
@@ -65,6 +66,8 @@ restart and source replacement, without app-core or VS Code.
 
 - [Architecture](docs/architecture.md): package dependencies, effect execution and
   the planned public Offstage client.
+- [Shared native host](docs/native-host.md): workspace channels, framing, credentials,
+  queue limits, cancellation and process recovery.
 - [Collection](docs/collection.md): Rust API, framed requests, standalone watch
   mode and process ownership.
 - [Import API](docs/import-api.md), [commands](docs/import-cli.md),
@@ -93,8 +96,9 @@ cargo build --locked -p idle-editor-capture -p idle-history-native --bins
 `idle-history-native` supports `default-features = false` for applications that
 only need its query/projection library. The default `service` feature adds the
 editor activity, content-preview and repository service endpoints. Applications
-keep their effect/result adapters; the extension packages these binaries and
-provides the editor UI.
+keep their effect/result adapters. The extension links these service libraries
+through `idle-host` and provides the editor UI. Standalone binaries remain in the
+producer bundle for other consumers and compatibility tests.
 
 ## Package releases
 

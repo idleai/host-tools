@@ -1,0 +1,30 @@
+[package]
+name = "idle-host"
+version.workspace = true
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+publish = false
+description = "One supervised native host for workspace capture, history and coordination"
+repository = "https://github.com/idleai/host-tools"
+readme = "../../README.md"
+keywords = ["idle", "history", "development"]
+categories = ["development-tools"]
+
+[dependencies]
+idle-coordination = { path = "../idle-coordination" }
+idle-editor-capture = { path = "../idle-editor-capture" }
+idle-history-collector = { path = "../idle-history-collector" }
+idle-history-native = { path = "../idle-history-native" }
+idle-host-io = { path = "../idle-host-io", features = ["async"] }
+idle-repository = { path = "../idle-repository" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+tokio = { version = "1", features = ["io-std", "io-util", "macros", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

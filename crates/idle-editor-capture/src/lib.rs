@@ -3,13 +3,12 @@
 //! The engine supplies immutable storage; this crate owns editor observation conversion.
 //! Raw observation schema 1 and operation schema 3 are independently versioned.
 
-use idle_host_io as _;
-
 mod blobs;
 mod context;
 mod convert;
 mod identity;
 mod replay;
+pub mod service;
 mod state;
 pub mod wire;
 mod writer;

@@ -1,10 +1,38 @@
 {
   "repository": "idleai/host-tools",
   "tag_prefix": "idle-coordination-v",
-  "build_args": ["-p", "idle-editor-capture", "-p", "idle-history-native", "-p", "idle-history-collector", "-p", "idle-repository", "-p", "idle-coordination", "--bins", "--examples"],
-  "binaries": ["idle-editor-service", "idle-history-service", "idle-history-collector", "idle-repository", "idle-coordination"],
-  "examples": ["history-fixture", "loopback-coordinator"],
-  "test_packages": ["idle-coordination"],
+  "build_args": [
+    "-p",
+    "idle-host",
+    "-p",
+    "idle-editor-capture",
+    "-p",
+    "idle-history-native",
+    "-p",
+    "idle-history-collector",
+    "-p",
+    "idle-repository",
+    "-p",
+    "idle-coordination",
+    "--bins",
+    "--examples"
+  ],
+  "binaries": [
+    "idle-host",
+    "idle-editor-service",
+    "idle-history-service",
+    "idle-history-collector",
+    "idle-repository",
+    "idle-coordination"
+  ],
+  "examples": [
+    "history-fixture",
+    "loopback-coordinator"
+  ],
+  "test_packages": [
+    "idle-coordination",
+    "idle-host"
+  ],
   "files": {
     "scripts/coordination-peer.cjs": "scripts/coordination-peer.cjs",
     "scripts/smoke-tunnels.py": "scripts/smoke-tunnels.py",
