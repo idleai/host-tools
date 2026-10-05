@@ -19,7 +19,8 @@ workspace has no dependency on app-core, a renderer or the VS Code API.
 | `packages/history-runtime` | TypeScript native peer bridge and invitation support for wire-interoperability tests. VS Code sharing uses `idle-coordination`. | Node |
 
 EditChain supplies versioned engine crates through its GitHub-hosted Cargo index.
-Cargo records the selected versions and archive checksums in `Cargo.lock`.
+Each build resolves compatible releases and records its selected versions and
+archive checksums in `Cargo.lock`. Subsequent builds refresh those selections.
 Codex import runs an explicit `codex-session-exporter` executable. That exporter
 stays with its Codex types in `codex/tools/codex-session-exporter`; consumers can
 install the binary without a Codex source checkout.
@@ -57,8 +58,8 @@ The executable serves framed JSON on stdin/stdout. See the
 
 The full check builds the native peer coordinator and runs a standalone
 collection process with the released exporter. `native-dependencies.json` records
-engine/exporter tags and archive checksums; `scripts/install-artifacts.py` installs
-them under ignored `.artifacts/`. The check runs the same
+compatible engine/exporter ranges; each build selects complete releases and
+checksums. `scripts/install-artifacts.py` installs them under ignored `.artifacts/`. The check runs the same
 collection scenario: discovery, append, exclusive ownership, graceful shutdown,
 restart and source replacement, without app-core or VS Code.
 
@@ -105,7 +106,9 @@ producer bundle for other consumers and compatibility tests.
 Our reusable crates are stored as `.crate` assets in this repository's GitHub
 Releases. The `cargo-index` branch contains the Cargo sparse index; its entries
 include immutable archive checksums. `.cargo/config.toml` registers the indexes.
-Normal checks use the committed lockfile and need only this repository's source.
+Normal checks need only this repository's source. They refresh internal Cargo
+versions before building; the committed lockfile supplies the initial third-party
+selection rather than holding internal packages to an older release.
 
 A successful `main` CI run starts the Release workflow. Release-plz calculates
 versions and changelogs, and automation commits that metadata to `main`. The
@@ -132,15 +135,39 @@ bundles when releasing the native tools. It publishes the draft only after all
 platform builds complete. `native-release.json` defines the binaries and test
 support owned by this producer.
 
-The **Update released artifacts** workflow checks for compatible internal
-packages and complete native/consumer archives every 15 minutes, or on manual
-request. It groups lockfile versions and archive checksums in one generated PR
-and starts the full CI workflow. Successful CI for the current bot commit allows
-a fast-forward into `main`, preserving the exact tested commit. If `main` has
-advanced, the updater refreshes the PR and CI runs again. Failed or incompatible
-updates stay open for review. Ordinary feature PRs and third-party Dependabot PRs
-retain their normal review process. CI files contain no sibling checkout commits
-to advance after each producer change.
+Every PR and main CI run resolves the latest compatible internal Cargo packages
+and complete native/consumer releases before checking the code. Native and
+consumer manifests declare Cargo-style version ranges, such as `^0.1.2`, instead
+of fixed release tags and archive checksums. The resolver verifies published
+checksums and records the selected versions in ignored
+`target/released-dependencies.json`. All jobs in that CI run use this selection;
+release verification, publication and native platform builds reuse it as well.
+
+A new build of the same source commit can select newer dependencies. CI retains
+its dependency record as an artifact, and releases include that record alongside
+their packages. Release preparation incorporates the selected Cargo dependencies
+in the version commit, so dependency changes can produce new binaries without a
+separate dependency PR. Existing published package versions remain immutable.
+
+The **Check latest released dependencies** workflow compares releases every 15
+minutes, or on manual request, and starts ordinary main CI when its inputs have
+changed. It creates no branch or PR. PR builds resolve immediately and do not
+wait for that schedule. Failed selections remain visible in CI; rerun CI to retry
+the same selection, or publish a fix to trigger a new check. Dependabot version
+updates remain paused and do not participate in this internal dependency flow.
+
+Keep consumer version requirements accurate when code starts using a new API.
+A requirement of `^0.1.2` accepts `0.1.3`; adopting `0.2.0` requires an explicit
+requirement change. Canonical `scripts/lint.sh` and `scripts/check.sh` also resolve
+latest dependencies. For an individual local command, use:
+
+```sh
+python3 scripts/release_dependencies.py run -- cargo build --workspace --locked
+```
+
+Resolution uses the authenticated GitHub CLI (`gh`) to discover published assets.
+Within one build, `--locked` keeps later commands on the selection that was just
+resolved; it does not prevent the next build from selecting newer releases.
 
 
 ## Coordinated development

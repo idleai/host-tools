@@ -1,25 +1,15 @@
 {
-  "schema": 1,
+  "schema": 2,
   "dependencies": {
     "engine": {
       "repository": "idleai/editchain",
-      "tag": "editchain-v0.1.0",
-      "sha256": {
-        "linux-x64": "9e15622fde35cf039ec61100ef249f18ccc711e8be8d95d7d9f96dcb630c2067",
-        "darwin-x64": "297d9311e21d6eebb39cee040f399f2a9fc461fd8a2971d7cafd04b972bb0015",
-        "darwin-arm64": "06e9858f1681a74a9689854a8de744440eab21dcc02d60d6509d827053305d0f",
-        "win32-x64": "69d1c7398d3857675351e594e34999afe675d99eb522b3926a42fdf72780f161"
-      }
+      "package": "editchain",
+      "version": "^0.1.0"
     },
     "codex-exporter": {
       "repository": "idleai/codex-evo",
-      "tag": "codex-session-exporter-v0.1.1",
-      "sha256": {
-        "linux-x64": "14d163b2927fed97d37572006edce5a0528bb6e59ce04927340fb99ed5623917",
-        "darwin-x64": "a466430ab6424c820611ae2b6eec529d36c14ffc3d2ba4d07e53f2b0a8d8cbad",
-        "darwin-arm64": "5624b6cd511b58d5a1b7a20889bdece609427328fbe9dc5066f403a480911ef9",
-        "win32-x64": "657d87bfeec51c35058cee53f989c128f0262b74cb2ed4053b732b58dfe08338"
-      }
+      "package": "codex-session-exporter",
+      "version": "^0.1.1"
     }
   }
 }

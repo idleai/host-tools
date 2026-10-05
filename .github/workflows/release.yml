@@ -23,8 +23,10 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: read
     outputs:
       revision: ${{ steps.prepare.outputs.revision }}
+      dependencies_artifact: ${{ steps.dependencies.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,10 +43,20 @@ jobs:
         id: prepare
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IDLE_RELEASE_INPUTS: ${{ github.event_name == 'workflow_run' && format('{0}/target/released-dependencies.json', github.workspace) || '' }}
+          DEPENDENCY_RUN_ID: ${{ github.event.workflow_run.id }}
           SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           gh auth setup-git
           python3 scripts/release-automation.py prepare --source "$SOURCE_COMMIT"
+      - uses: actions/upload-artifact@v7
+        id: dependencies
+        if: steps.prepare.outputs.revision != ''
+        with:
+          name: prepared-dependencies
+          overwrite: true
+          path: target/released-dependencies.json
+          if-no-files-found: error
 
   verify:
     needs: prepare
@@ -52,6 +64,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       revision: ${{ needs.prepare.outputs.revision }}
+      dependencies_artifact: ${{ needs.prepare.outputs.dependencies_artifact }}
 
   publish:
     needs: [prepare, verify]
@@ -70,6 +83,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.97.0
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.verify.outputs.dependencies_artifact }}
+          path: target
+      - name: Restore verified dependencies
+        run: python3 scripts/release_dependencies.py restore
       - uses: release-plz/action@b8d6b54b02889ff2ae2bb82e8b57c3a8fc1683a5 # v0.5
         with:
           command: release
@@ -80,6 +99,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/release-crates.py --publish
+      - name: Record tested dependency versions with the releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IDLE_RELEASE_INPUTS: ${{ github.workspace }}/target/released-dependencies.json
+        run: |
+          gh auth setup-git
+          git fetch origin --tags
+          python3 scripts/release-automation.py record
       - name: Select unfinished artifact release
         id: artifact
         env:
@@ -90,10 +117,11 @@ jobs:
           python3 scripts/release-automation.py artifact --package idle-coordination
 
   artifacts:
-    needs: publish
+    needs: [publish, verify]
     if: needs.publish.outputs.artifact_tag != ''
     permissions:
       contents: write
     uses: ./.github/workflows/native-release.yml
     with:
       tag: ${{ needs.publish.outputs.artifact_tag }}
+      dependencies_artifact: ${{ needs.verify.outputs.dependencies_artifact }}
