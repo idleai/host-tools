@@ -48,8 +48,9 @@ def metadata_only(paths):
 
 
 def packages():
-    config = tomllib.loads(Path("release-plz.toml").read_text())
-    excluded = {item["name"] for item in config.get("package", []) if item.get("release") is False}
+    config = tomllib.loads(Path("release-plz.toml").read_text(encoding="utf-8"))
+    excluded = {item["name"] for item in config.get("package", [])
+                if item.get("release") is False or item.get("git_release_enable") is False}
     metadata = json.loads(command("cargo", "metadata", "--no-deps", "--format-version", "1"))
     return [package for package in metadata["packages"] if package["name"] not in excluded]
 

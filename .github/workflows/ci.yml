@@ -99,3 +99,30 @@ jobs:
       - name: Install cargo-deny
         run: cargo install cargo-deny --locked --version 0.20.2
       - run: bash scripts/check.sh
+
+  windows_dependencies:
+    name: Restore shared dependencies on Windows
+    needs: dependencies
+    runs-on: windows-2022
+    defaults:
+      run:
+        working-directory: host-tools
+    env:
+      IDLE_RELEASE_INPUTS: ${{ github.workspace }}/host-tools/target/released-dependencies.json
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: host-tools
+          ref: ${{ inputs.revision || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.dependencies.outputs.artifact_id }}
+          path: host-tools/target
+      - name: Restore the Linux dependency record
+        run: python scripts/release_dependencies.py restore
+      - name: Check dependency selection and reuse
+        run: python -m unittest discover -s scripts -p test_release_dependencies.py

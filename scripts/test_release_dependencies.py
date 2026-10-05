@@ -126,10 +126,28 @@ class BuildInputTests(unittest.TestCase):
             dependencies.restore(self.root)
 
     def test_windows_checkout_line_endings_reuse_the_same_requirements(self):
-        dependencies.capture(self.root, self.artifacts)
         manifest = self.root / "Cargo.toml"
+        manifest.write_bytes(manifest.read_bytes().replace(b"\r\n", b"\n"))
+        dependencies.capture(self.root, self.artifacts)
         manifest.write_bytes(manifest.read_bytes().replace(b"\n", b"\r\n"))
         dependencies.restore(self.root)
+
+    def test_windows_locale_restores_utf8_requirements_and_lockfile(self):
+        manifest = self.root / "Cargo.toml"
+        manifest.write_text(manifest.read_text() + "# Requirements \u2014 shared by all hosts\n", encoding="utf-8")
+        lock = 'version = 4\n# Dependencies \u2014 selected once\n'
+        (self.root / "Cargo.lock").write_text(lock, encoding="utf-8")
+        selected = dependencies.capture(self.root, self.artifacts)
+        original_open = Path.open
+
+        def windows_open(path, mode="r", buffering=-1, encoding=None, errors=None, newline=None):
+            if "b" not in mode and encoding in (None, "locale"):
+                encoding = "cp1252"
+            return original_open(path, mode, buffering, encoding, errors, newline)
+
+        with patch.object(Path, "open", windows_open):
+            self.assertEqual(dependencies.restore(self.root), selected)
+        self.assertEqual((self.root / "Cargo.lock").read_bytes().decode("utf-8").replace("\r\n", "\n"), lock)
 
     def test_selection_from_another_source_commit_is_rejected(self):
         dependencies.capture(self.root, self.artifacts)

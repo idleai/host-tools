@@ -13,5 +13,10 @@ git_only = true
 git_release_draft = true
 
 [[package]]
+name = "idle-host"
+# This binary ships in the idle-coordination native bundle.
+git_release_enable = false
+
+[[package]]
 name = "russh-cryptovec"
 release = false

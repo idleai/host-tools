@@ -19,8 +19,6 @@ workspace has no dependency on app-core, a renderer or the VS Code API.
 | `packages/history-runtime` | TypeScript native peer bridge and invitation support for wire-interoperability tests. VS Code sharing uses `idle-coordination`. | Node |
 
 EditChain supplies versioned engine crates through its GitHub-hosted Cargo index.
-Each build resolves compatible releases and records its selected versions and
-archive checksums in `Cargo.lock`. Subsequent builds refresh those selections.
 Codex import runs an explicit `codex-session-exporter` executable. That exporter
 stays with its Codex types in `codex/tools/codex-session-exporter`; consumers can
 install the binary without a Codex source checkout.
@@ -28,8 +26,8 @@ install the binary without a Codex source checkout.
 ## Build and verify
 
 The toolchain is pinned in `rust-toolchain.toml`. Install Node 22, Python 3.12 or
-newer, Git, OpenSSL development libraries, `cargo-deny` 0.20.2 and the WASM target,
-then run:
+newer, Git, an authenticated GitHub CLI (`gh`), OpenSSL development libraries,
+`cargo-deny` 0.20.2 and the WASM target, then run:
 
 ```sh
 npm --prefix packages/history-runtime ci
@@ -56,12 +54,9 @@ target/debug/idle-coordination --config /absolute/path/service.json
 The executable serves framed JSON on stdin/stdout. See the
 [configuration and API guide](docs/coordination.md) before starting it.
 
-The full check builds the native peer coordinator and runs a standalone
-collection process with the released exporter. `native-dependencies.json` records
-compatible engine/exporter ranges; each build selects complete releases and
-checksums. `scripts/install-artifacts.py` installs them under ignored `.artifacts/`. The check runs the same
-collection scenario: discovery, append, exclusive ownership, graceful shutdown,
-restart and source replacement, without app-core or VS Code.
+The full check also runs standalone collection with the released exporter,
+covering discovery, append, exclusive ownership, shutdown, restart and source
+replacement.
 
 ## Integration
 
@@ -103,80 +98,8 @@ producer bundle for other consumers and compatibility tests.
 
 ## Package releases
 
-Our reusable crates are stored as `.crate` assets in this repository's GitHub
-Releases. The `cargo-index` branch contains the Cargo sparse index; its entries
-include immutable archive checksums. `.cargo/config.toml` registers the indexes.
-Normal checks need only this repository's source. They refresh internal Cargo
-versions before building; the committed lockfile supplies the initial third-party
-selection rather than holding internal packages to an older release.
-
-A successful `main` CI run starts the Release workflow. Release-plz calculates
-versions and changelogs, and automation commits that metadata to `main`. The
-entire CI workflow checks the version commit before any package is published.
-Package archives, indexes and native bundles then publish from that exact commit;
-there is no separate release PR. Concurrent changes to `main` are never overwritten.
-
-Declare breaking changes in the feature PR, including the required minimum
-versions in consumers. Release-plz uses commit messages and Rust API checks to
-calculate the next version. To recover a failed publication, use **Re-run failed
-jobs** on that Release run, retaining its verified commit even if `main` has
-advanced. Dispatch **Release** on `main` to prepare current changes or resume a
-current version commit. Existing versions and public archives remain immutable;
-retries can complete unfinished drafts. A documentation-only change that does not alter packaged
-contents does not create another package version.
-
-Dependabot requires a secret reference for custom Cargo registries, including
-public ones. Set the repository's Dependabot secret `PUBLIC_CARGO_REGISTRY_TOKEN`
-to the literal value `anonymous`. This is a public marker, not an access token;
-the GitHub indexes remain anonymously readable.
-
-The native release workflow builds Linux x64, macOS x64/arm64 and Windows x64
-bundles when releasing the native tools. It publishes the draft only after all
-platform builds complete. `native-release.json` defines the binaries and test
-support owned by this producer.
-
-Every PR and main CI run resolves the latest compatible internal Cargo packages
-and complete native/consumer releases before checking the code. Native and
-consumer manifests declare Cargo-style version ranges, such as `^0.1.2`, instead
-of fixed release tags and archive checksums. The resolver verifies published
-checksums and records the selected versions in ignored
-`target/released-dependencies.json`. All jobs in that CI run use this selection;
-release verification, publication and native platform builds reuse it as well.
-
-A new build of the same source commit can select newer dependencies. CI retains
-its dependency record as an artifact, and releases include that record alongside
-their packages. Release preparation incorporates the selected Cargo dependencies
-in the version commit, so dependency changes can produce new binaries without a
-separate dependency PR. Existing published package versions remain immutable.
-
-The **Check latest released dependencies** workflow compares releases every 15
-minutes, or on manual request, and starts ordinary main CI when its inputs have
-changed. It creates no branch or PR. PR builds resolve immediately and do not
-wait for that schedule. Failed selections remain visible in CI; rerun CI to retry
-the same selection, or publish a fix to trigger a new check. Dependabot version
-updates remain paused and do not participate in this internal dependency flow.
-
-Keep consumer version requirements accurate when code starts using a new API.
-A requirement of `^0.1.2` accepts `0.1.3`; adopting `0.2.0` requires an explicit
-requirement change. Canonical `scripts/lint.sh` and `scripts/check.sh` also resolve
-latest dependencies. For an individual local command, use:
-
-```sh
-python3 scripts/release_dependencies.py run -- cargo build --workspace --locked
-```
-
-Resolution uses the authenticated GitHub CLI (`gh`) to discover published assets.
-Within one build, `--locked` keeps later commands on the selection that was just
-resolved; it does not prevent the next build from selecting newer releases.
-
-
-## Coordinated development
-
-For ordinary local Rust work, add a temporary Cargo patch for the relevant
-registry and pass it with `cargo --config /absolute/path/local.toml ...`.
-Keep these overrides out of committed manifests and lockfiles. Full checks with
-an unpublished producer can use `memos/scripts/check-integration.py` with
-explicit `--producer` and `--consumer` checkout paths. It temporarily patches
-Cargo, builds candidate native bundles when needed, runs the consumer's normal
-check script and restores its dependency files. The manual **Unpublished package
-integration** workflow in memos runs the same check for selected branches.
+Checks select the latest compatible internal releases and reuse that selection
+through testing and packaging. Rebuilding a commit can select newer versions.
+Successful main CI starts automatic crate and native bundle publication. See
+[packaging and releases](docs/packaging.md) for the workflow, retries and testing
+unpublished dependencies.
