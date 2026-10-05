@@ -10,12 +10,62 @@ on:
         description: Commit to validate before publication
         required: true
         type: string
+      dependencies_artifact:
+        description: Prepared dependencies to reuse during release verification
+        required: false
+        type: string
+        default: ''
+    outputs:
+      dependencies_artifact:
+        description: Exact dependencies selected for this CI run
+        value: ${{ jobs.dependencies.outputs.artifact_id }}
 
 permissions:
   contents: read
 
 jobs:
+  dependencies:
+    name: Resolve latest compatible releases
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: host-tools
+    outputs:
+      artifact_id: ${{ steps.save.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: host-tools
+          ref: ${{ inputs.revision || github.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.0
+      - name: Select current released dependencies
+        if: ${{ !inputs.dependencies_artifact }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/release_dependencies.py resolve
+      - uses: actions/download-artifact@v8
+        if: ${{ inputs.dependencies_artifact != '' }}
+        with:
+          artifact-ids: ${{ inputs.dependencies_artifact }}
+          path: host-tools/target
+      - name: Restore prepared release dependencies
+        if: ${{ inputs.dependencies_artifact != '' }}
+        run: python3 scripts/release_dependencies.py restore
+      - uses: actions/upload-artifact@v7
+        id: save
+        with:
+          name: released-dependencies
+          overwrite: true
+          path: host-tools/target/released-dependencies.json
+          if-no-files-found: error
+
   check:
+    needs: dependencies
+    env:
+      IDLE_RELEASE_INPUTS: ${{ github.workspace }}/host-tools/target/released-dependencies.json
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,6 +84,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "host-tools -> target"
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.dependencies.outputs.artifact_id }}
+          path: host-tools/target
+      - name: Restore this build's dependency selection
+        run: python3 scripts/release_dependencies.py restore
       - uses: actions/setup-node@v7
         with:
           node-version: '22'

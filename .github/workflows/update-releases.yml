@@ -1,48 +1,30 @@
-name: Update released artifacts
+name: Check latest released dependencies
 on:
   schedule:
     - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
   actions: write
 
 concurrency:
-  group: update-released-artifacts
+  group: check-released-dependencies
   cancel-in-progress: false
 
 jobs:
-  update:
+  check:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7
         with:
           ref: main
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.97.0
-      - uses: Swatinem/rust-cache@v2
-      - name: Resolve complete compatible releases
+      - name: Start CI when upstream releases have changed
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 scripts/update-releases.py
-      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
-        id: pr
-        with:
-          branch: deps/released-artifacts
-          title: 'build(deps): update released artifacts'
-          commit-message: 'build(deps): update released artifacts'
-          body: 'Update compatible Cargo packages, producer releases and their SHA-256 checksums. The full CI workflow validates the resulting assembly. A successful current commit is automatically fast-forwarded into main.'
-          add-paths: |
-            Cargo.lock
-            native-dependencies.json
-            consumer-dependencies.json
-      - name: Run CI for the generated dependency PR
-        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated' || (github.event_name == 'workflow_dispatch' && steps.pr.outputs.pull-request-number != '')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run ci.yml --ref deps/released-artifacts
+        run: python3 scripts/check-release-updates.py

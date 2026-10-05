@@ -12,6 +12,8 @@ import tarfile
 import tempfile
 import urllib.request
 
+import release_dependencies
+
 
 def digest(path):
     with path.open("rb") as stream:
@@ -87,7 +89,8 @@ def install(name, dependency, root, target):
 
 def main():
     root = Path(__file__).resolve().parent.parent
-    dependencies = json.loads((root / "native-dependencies.json").read_text())["dependencies"]
+    selection = release_dependencies.ensure(root)
+    dependencies = selection["artifacts"]["native-dependencies.json"]["dependencies"]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("names", nargs="*", choices=list(dependencies))
     args = parser.parse_args()

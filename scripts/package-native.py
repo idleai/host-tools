@@ -12,6 +12,8 @@ import tarfile
 import tempfile
 import tomllib
 
+import release_dependencies
+
 
 def run(root, *arguments):
     subprocess.run(arguments, cwd=root, check=True)
@@ -64,6 +66,7 @@ def main():
     args = parser.parse_args()
     if args.tag != tag:
         raise ValueError(f"release tag must match package version: {tag}")
+    release_dependencies.ensure(root)
     systems = {"Linux": "linux", "Darwin": "darwin", "Windows": "win32"}
     machines = {"x86_64": "x64", "amd64": "x64", "aarch64": "arm64", "arm64": "arm64"}
     target = f"{systems[platform.system()]}-{machines[platform.machine().lower()]}"
@@ -74,6 +77,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="idle-native-release-") as temporary:
         staging = Path(temporary)
+        shutil.copyfile(release_dependencies.record_path(root), staging / "released-dependencies.json")
         (staging / "bin").mkdir()
         for binary in config["binaries"]:
             source = release / (binary + suffix)
