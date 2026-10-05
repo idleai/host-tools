@@ -1,7 +1,7 @@
 name: Update released artifacts
 on:
   schedule:
-    - cron: '23 8 * * 1'
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -15,10 +15,12 @@ concurrency:
 
 jobs:
   update:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -34,13 +36,13 @@ jobs:
           branch: deps/released-artifacts
           title: 'build(deps): update released artifacts'
           commit-message: 'build(deps): update released artifacts'
-          body: 'Update compatible Cargo packages, producer releases and their SHA-256 checksums. The standard CI checks validate the resulting assembly.'
+          body: 'Update compatible Cargo packages, producer releases and their SHA-256 checksums. The full CI workflow validates the resulting assembly. A successful current commit is automatically fast-forwarded into main.'
           add-paths: |
             Cargo.lock
             native-dependencies.json
             consumer-dependencies.json
       - name: Run CI for the generated dependency PR
-        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated' || (github.event_name == 'workflow_dispatch' && steps.pr.outputs.pull-request-number != '')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run ci.yml --ref deps/released-artifacts

@@ -19,10 +19,16 @@ def parse_tag(tag):
 
 
 def compatible(current, candidate):
-    return candidate >= current and candidate[0] == current[0] and (current[0] != 0 or candidate[1] == current[1])
+    if candidate < current:
+        return False
+    if current[0] != 0:
+        return candidate[0] == current[0]
+    if current[1] != 0:
+        return candidate[:2] == current[:2]
+    return candidate == current
 
 
-def latest(dependency, native):
+def latest(dependency, native, exact=False):
     prefix, current = parse_tag(dependency["tag"])
     records = subprocess.check_output([
         "gh", "api", "--paginate", f"repos/{dependency['repository']}/releases?per_page=100",
@@ -36,6 +42,8 @@ def latest(dependency, native):
         except ValueError:
             continue
         if not compatible(current, version):
+            continue
+        if exact and release["tag_name"] != dependency["tag"]:
             continue
         assets = {asset["name"]: asset["browser_download_url"] for asset in release["assets"]}
         filenames = {target: f"{release['tag_name']}-{target}.tar.gz" for target in PLATFORMS} if native else {
