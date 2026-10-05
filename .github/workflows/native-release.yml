@@ -38,14 +38,14 @@ jobs:
     env:
       OPENSSL_STATIC: '1'
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.tag || github.sha }}
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.97.0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - uses: Swatinem/rust-cache@v2
@@ -65,7 +65,7 @@ jobs:
           echo "OPENSSL_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
       - name: Cache Windows native dependencies
         if: runner.os == 'Windows'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/vcpkg-cache
           key: vcpkg-windows-openssl-${{ hashFiles('**/Cargo.lock') }}
@@ -85,7 +85,7 @@ jobs:
           ARGS=()
           if [[ -n "$RELEASE_TAG" ]]; then ARGS+=(--tag "$RELEASE_TAG"); fi
           python3 scripts/package-native.py --output releases "${ARGS[@]}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native-${{ matrix.platform }}
           path: releases/*
@@ -98,7 +98,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: native-*
           merge-multiple: true
