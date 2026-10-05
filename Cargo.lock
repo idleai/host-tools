@@ -2205,7 +2205,7 @@ dependencies = [
 
 [[package]]
 name = "idle-coordination"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -2231,7 +2231,7 @@ dependencies = [
 
 [[package]]
 name = "idle-editor-capture"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "blake3",
  "editchain-core",
@@ -2246,7 +2246,7 @@ dependencies = [
 
 [[package]]
 name = "idle-history"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "editchain-core",
  "facet",
@@ -2257,7 +2257,7 @@ dependencies = [
 
 [[package]]
 name = "idle-history-collector"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "blake3",
  "ctrlc",
@@ -2274,7 +2274,7 @@ dependencies = [
 
 [[package]]
 name = "idle-history-import"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "blake3",
  "editchain-core",
@@ -2294,7 +2294,7 @@ dependencies = [
 
 [[package]]
 name = "idle-history-native"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "editchain-core",
  "editchain-engine",
@@ -2311,7 +2311,7 @@ dependencies = [
 
 [[package]]
 name = "idle-history-tools"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "clap",
  "ctrlc",
@@ -2328,7 +2328,7 @@ dependencies = [
 
 [[package]]
 name = "idle-host"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "idle-coordination",
  "idle-editor-capture",
@@ -2345,14 +2345,14 @@ dependencies = [
 
 [[package]]
 name = "idle-host-io"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "tokio",
 ]
 
 [[package]]
 name = "idle-protocol"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "facet",
  "schemars",
@@ -2362,7 +2362,7 @@ dependencies = [
 
 [[package]]
 name = "idle-repository"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "blake3",
  "editchain-core",

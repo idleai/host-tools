@@ -16,19 +16,19 @@ default = ["service"]
 service = ["dep:idle-host-io", "dep:idle-editor-capture", "dep:idle-repository", "dep:serde"]
 
 [dependencies]
-idle-host-io = { registry = "idle-host-tools", version = "0.1.1", path = "../idle-host-io", optional = true }
+idle-host-io = { registry = "idle-host-tools", version = "0.1.2", path = "../idle-host-io", optional = true }
 editchain-core = { registry = "idle-editchain", version = "0.1.0" }
-idle-editor-capture = { registry = "idle-host-tools", path = "../idle-editor-capture", version = "0.1.1", optional = true }
-idle-history = { registry = "idle-host-tools", path = "../idle-history", version = "0.1.1" }
-idle-protocol = { registry = "idle-host-tools", path = "../idle-protocol", version = "0.1.1" }
-idle-repository = { registry = "idle-host-tools", path = "../idle-repository", version = "0.1.1", optional = true }
+idle-editor-capture = { registry = "idle-host-tools", path = "../idle-editor-capture", version = "0.1.2", optional = true }
+idle-history = { registry = "idle-host-tools", path = "../idle-history", version = "0.1.2" }
+idle-protocol = { registry = "idle-host-tools", path = "../idle-protocol", version = "0.1.2" }
+idle-repository = { registry = "idle-host-tools", path = "../idle-repository", version = "0.1.2", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = "=1.0.151"
 editchain-engine = { registry = "idle-editchain", version = "0.1.0" }
 
 [dev-dependencies]
 tempfile = "3"
-idle-history-import = { registry = "idle-host-tools", version = "0.1.1", path = "../idle-history-import" }
+idle-history-import = { registry = "idle-host-tools", version = "0.1.2", path = "../idle-history-import" }
 
 [[bin]]
 name = "idle-history-service"
