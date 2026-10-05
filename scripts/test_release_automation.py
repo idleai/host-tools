@@ -186,5 +186,28 @@ class ReleasePreparationTests(unittest.TestCase):
                 AUTOMATION.pending({"name": "fixture", "version": "0.1.0"}, self.source)
 
 
+class ReleaseConfigurationTests(unittest.TestCase):
+    def test_tag_only_packages_do_not_require_a_github_release(self):
+        with tempfile.TemporaryDirectory() as temporary, contextlib.chdir(temporary):
+            Path("release-plz.toml").write_text(
+                '[[package]]\nname = "disabled"\nrelease = false\n'
+                '[[package]]\nname = "bundled"\ngit_release_enable = false\n', encoding="utf-8")
+            packages = [{"name": name} for name in ("published", "disabled", "bundled")]
+            with patch.object(AUTOMATION, "command", return_value=json.dumps({"packages": packages})):
+                self.assertEqual(AUTOMATION.packages(), [{"name": "published"}])
+
+    def test_every_release_has_a_crate_or_native_bundle_to_publish(self):
+        root = Path(__file__).resolve().parent.parent
+        native = json.loads((root / "native-release.json").read_text())
+        native_package = native["tag_prefix"].removesuffix("-v")
+        with contextlib.chdir(root):
+            packages = AUTOMATION.packages()
+        self.assertIn(native_package, {package["name"] for package in packages})
+        for package in packages:
+            with self.subTest(package=package["name"]):
+                self.assertTrue(package["publish"] or package["name"] == native_package,
+                                "a release must publish a Cargo archive or own the native bundle")
+
+
 if __name__ == "__main__":
     unittest.main()

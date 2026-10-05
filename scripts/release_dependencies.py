@@ -72,8 +72,8 @@ def latest(dependency, native):
 def definition_hash(root):
     names = command(root, "git", "ls-files", "--cached", "--others", "--exclude-standard", "--",
                     "Cargo.toml", "**/Cargo.toml", ".cargo/config.toml", *MANIFESTS).splitlines()
-    # Git checkouts may use CRLF on Windows; requirements are text on every host.
-    hashes = {name: hashlib.sha256((root / name).read_text().encode()).hexdigest() for name in sorted(set(names))}
+    # Normalize checkout line endings and decode Cargo manifests as UTF-8 on every host.
+    hashes = {name: hashlib.sha256((root / name).read_text(encoding="utf-8").encode()).hexdigest() for name in sorted(set(names))}
     return hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
 
 
@@ -84,16 +84,16 @@ def record_path(root):
 
 def capture(root, artifacts):
     record = {"schema": 1, "revision": command(root, "git", "rev-parse", "HEAD"),
-              "definitions": definition_hash(root), "cargo_lock": (root / "Cargo.lock").read_text(),
+              "definitions": definition_hash(root), "cargo_lock": (root / "Cargo.lock").read_text(encoding="utf-8"),
               "artifacts": artifacts}
     destination = record_path(root)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    destination.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return record
 
 
 def read(root):
-    record = json.loads(record_path(root).read_text())
+    record = json.loads(record_path(root).read_text(encoding="utf-8"))
     if record.get("schema") != 1:
         raise ValueError("unsupported released dependency record")
     if record["revision"] != command(root, "git", "rev-parse", "HEAD"):
@@ -105,7 +105,7 @@ def read(root):
     if set(record["artifacts"]) != expected:
         raise ValueError("released dependency record has different artifact manifests")
     for name, document in record["artifacts"].items():
-        specifications = json.loads((root / name).read_text())["dependencies"]
+        specifications = json.loads((root / name).read_text(encoding="utf-8"))["dependencies"]
         if set(document["dependencies"]) != set(specifications):
             raise ValueError("released dependency names changed after resolution")
         for key, dependency in document["dependencies"].items():
@@ -135,14 +135,14 @@ def read(root):
 
 def restore(root):
     record = read(root)
-    (root / "Cargo.lock").write_text(record["cargo_lock"])
+    (root / "Cargo.lock").write_text(record["cargo_lock"], encoding="utf-8")
     return record
 
 
 def update_cargo(root):
     # Preserve third-party selections unless an internal release needs a change.
     path = root / "Cargo.lock"
-    lock = tomllib.loads(path.read_text()) if path.exists() else {"package": []}
+    lock = tomllib.loads(path.read_text(encoding="utf-8")) if path.exists() else {"package": []}
     packages = [package for package in lock["package"]
                 if "raw.githubusercontent.com/idleai/" in package.get("source", "")]
     # Manifest edits and internal upgrades must resolve together: an older locked
@@ -159,7 +159,7 @@ def resolve(root):
     for filename in MANIFESTS:
         path = root / filename
         if path.exists():
-            document = json.loads(path.read_text())
+            document = json.loads(path.read_text(encoding="utf-8"))
             if document.get("schema") != 2:
                 raise ValueError(f"expected version requirements in {filename}")
             artifacts[filename] = {"schema": 1, "dependencies": {
@@ -176,7 +176,7 @@ def resolve(root):
 def ensure(root):
     if os.environ.get(ENVIRONMENT):
         record = read(root)
-        if (root / "Cargo.lock").read_text() != record["cargo_lock"]:
+        if (root / "Cargo.lock").read_text(encoding="utf-8") != record["cargo_lock"]:
             raise ValueError("Cargo.lock changed after dependency resolution")
         return record
     return resolve(root)
@@ -198,7 +198,7 @@ def main():
     elif args.command == "restore":
         restore(root)
     elif args.command == "refresh":
-        capture(root, json.loads(record_path(root).read_text())["artifacts"])
+        capture(root, json.loads(record_path(root).read_text(encoding="utf-8"))["artifacts"])
     elif args.command == "verify":
         ensure(root)
     else:
