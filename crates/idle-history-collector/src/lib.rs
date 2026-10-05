@@ -76,6 +76,16 @@ pub struct Collector {
     monitor: monitor::Monitor,
     schedule: schedule::Schedule,
     owner: Option<fs::File>,
+    cancellation: ImportCancellation,
+}
+
+/// Cooperative import cancellation shared with a supervising host.
+pub use idle_history_import::cancellation::ImportCancellation;
+
+impl Drop for Collector {
+    fn drop(&mut self) {
+        let _released = self.release_owner();
+    }
 }
 
 impl Collector {
@@ -84,6 +94,16 @@ impl Collector {
     /// # Errors
     /// Returns invalid path bindings or unreadable existing history.
     pub fn new(binding: Binding) -> io::Result<Self> {
+        Self::with_cancellation(binding, ImportCancellation::default())
+    }
+
+    /// Prepare a collector whose source and helper work can be cancelled by its owner.
+    /// # Errors
+    /// Returns invalid path bindings or unreadable existing history.
+    pub fn with_cancellation(
+        binding: Binding,
+        cancellation: ImportCancellation,
+    ) -> io::Result<Self> {
         if [
             &binding.workspace,
             &binding.chain,
@@ -105,6 +125,7 @@ impl Collector {
             monitor,
             schedule: schedule::Schedule::default(),
             owner: None,
+            cancellation,
         })
     }
 
@@ -116,7 +137,7 @@ impl Collector {
     pub fn scan(&mut self, mode: Mode) -> io::Result<Update> {
         let request = self.schedule.request(&self.binding, mode)?;
         if mode == Mode::Observe {
-            self.owner = None;
+            self.release_owner()?;
         } else if (!request.paths.is_empty() || self.binding.chain.is_dir())
             && let Err(error) = self.claim_owner()
         {
@@ -133,6 +154,15 @@ impl Collector {
                 Err(error)
             }
         }
+    }
+
+    fn release_owner(&mut self) -> io::Result<()> {
+        if let Some(file) = self.owner.take() {
+            // Release the lock even if a concurrently spawned child temporarily
+            // retains the same open file description before exec.
+            file.unlock()?;
+        }
+        Ok(())
     }
 
     fn claim_owner(&mut self) -> io::Result<()> {
@@ -163,6 +193,9 @@ impl Collector {
     /// # Errors
     /// Returns source, helper, migration, writer or history-read failures.
     pub fn poll(&mut self, request: &Poll) -> io::Result<Update> {
+        self.cancellation
+            .check(&self.binding.workspace)
+            .map_err(io::Error::other)?;
         let mut result = if request.paths.is_empty() {
             Update::default()
         } else {

@@ -2320,6 +2320,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "idle-host"
+version = "0.1.0"
+dependencies = [
+ "idle-coordination",
+ "idle-editor-capture",
+ "idle-history-collector",
+ "idle-history-native",
+ "idle-host-io",
+ "idle-repository",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "idle-host-io"
 version = "0.1.0"
 dependencies = [

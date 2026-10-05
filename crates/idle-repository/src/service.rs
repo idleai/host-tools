@@ -38,14 +38,46 @@ pub async fn serve(
     mut output: impl AsyncWrite + Unpin,
     binding: Binding,
 ) -> io::Result<()> {
-    let mut reader = Reader::new(binding)?;
+    let mut service = Service::new(binding)?;
     let mut input = input;
     while let Some(bytes) = idle_host_io::asynchronous::read_frame(&mut input, 16 * 1024).await? {
-        let request: Request = serde_json::from_slice(&bytes)
+        let bytes = service.handle(&bytes).await?;
+        idle_host_io::asynchronous::write_frame(&mut output, &bytes, 8 * 1024 * 1024).await?;
+    }
+    Ok(())
+}
+
+/// Repository reads for one immutable host binding, independently of transport ownership.
+#[derive(Debug)]
+pub struct Service {
+    reader: Reader,
+}
+
+impl Service {
+    /// Validate the installation and prepare its provider clients.
+    /// # Errors
+    /// Rejects invalid repository paths or client initialization failures.
+    pub fn new(binding: Binding) -> io::Result<Self> {
+        Ok(Self {
+            reader: Reader::new(binding)?,
+        })
+    }
+
+    /// Execute one bounded read using only the credential supplied with this request.
+    /// # Errors
+    /// Returns malformed requests or replies exceeding the transport limit.
+    pub async fn handle(&mut self, bytes: &[u8]) -> io::Result<Vec<u8>> {
+        if bytes.len() > 16 * 1024 {
+            return Err(io::Error::other(
+                "Repository request exceeds the request limit.",
+            ));
+        }
+        let request: Request = serde_json::from_slice(bytes)
             .map_err(|_error| io::Error::other("Invalid repository request."))?;
         let response = Response {
             id: request.id,
-            body: reader
+            body: self
+                .reader
                 .read(
                     request.body.credentials.as_ref(),
                     request.body.refresh_github,
@@ -59,7 +91,6 @@ pub async fn serve(
                 "Repository snapshot exceeds the response limit.",
             ));
         }
-        idle_host_io::asynchronous::write_frame(&mut output, &bytes, 8 * 1024 * 1024).await?;
+        Ok(bytes)
     }
-    Ok(())
 }

@@ -42,7 +42,11 @@ and peer-awareness view state.
 `idle-host-io` supplies bounded little-endian framing to capture, collection,
 repository and history services. Each service retains its own request/response
 shape and size limits. The blocking and async adapters use the same length
-validation. Coordination retains its separate big-endian protocol.
+validation. Standalone coordination retains its separate big-endian protocol.
+`idle-host` wraps unchanged service payloads in one versioned channel protocol
+over a shared private pipe. Its workers link these libraries directly; they do
+not launch the standalone services. Each channel owns its binding, cancellation
+and credentials. See [native host](native-host.md).
 
 The engine and application CLIs share `editchain-cli-support` for input limits,
 stream formatting and basic exit codes. Application import errors and engine
@@ -51,7 +55,7 @@ query abbreviations stay with their respective commands.
 VS Code owns editor event observation, webviews, credential storage, trust checks
 and native editor actions. Its only Rust crate is `idle-vscode-webview`, which
 mounts app-core/web-ui and implements their webview bridge. Its TypeScript host
-calls and packages the shared native services directly. Recorded editor schema
+calls the services through one packaged `idle-host`. Recorded editor schema
 and IDs remain unchanged. Another editor supplies its own observations
 and recorder identity. A management TUI can read history and issue commands
 without an editor recorder.

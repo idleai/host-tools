@@ -63,7 +63,10 @@ impl Collector {
             selected_paths: paths,
             repositories: &repositories,
         };
-        let options = ImportOptions::default();
+        let options = ImportOptions {
+            cancellation: self.cancellation.clone(),
+            ..ImportOptions::default()
+        };
         let batch = ImportBatch::capture_bounded(&cursors, options.batch_limits, |ops, pending| {
             provider.capture(
                 &discovery,
