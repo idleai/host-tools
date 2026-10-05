@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/idleai/host-tools/compare/idle-host-io-v0.1.2...idle-host-io-v0.1.3) - 2026-10-05
+
+### Other
+
+- *(f43-d9)* resolve latest compatible releases at build start ([#17](https://github.com/idleai/host-tools/pull/17))
+
 ## [0.1.2](https://github.com/idleai/host-tools/compare/idle-host-io-v0.1.1...idle-host-io-v0.1.2) - 2026-10-05
 
 ### Other
