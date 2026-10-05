@@ -126,8 +126,9 @@ class BuildInputTests(unittest.TestCase):
             dependencies.restore(self.root)
 
     def test_windows_checkout_line_endings_reuse_the_same_requirements(self):
-        dependencies.capture(self.root, self.artifacts)
         manifest = self.root / "Cargo.toml"
+        manifest.write_bytes(manifest.read_bytes().replace(b"\r\n", b"\n"))
+        dependencies.capture(self.root, self.artifacts)
         manifest.write_bytes(manifest.read_bytes().replace(b"\n", b"\r\n"))
         dependencies.restore(self.root)
 
