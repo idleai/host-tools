@@ -17,9 +17,13 @@ updates:
     directory: /
     schedule:
       interval: daily
-    groups:
-      idle-packages:
-        patterns: ["editchain*", "idle-*", "history-geometry", "app-core", "web-ui"]
+    # Internal packages are updated together with native archive checksums.
+    ignore:
+      - dependency-name: "editchain*"
+      - dependency-name: "idle-*"
+      - dependency-name: "history-geometry"
+      - dependency-name: "app-core"
+      - dependency-name: "web-ui"
     commit-message:
       prefix: "build(deps)"
   - package-ecosystem: github-actions
