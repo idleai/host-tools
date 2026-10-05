@@ -12,10 +12,10 @@ keywords = ["idle", "history", "development"]
 categories = ["development-tools"]
 
 [dependencies]
-idle-host-io = { registry = "idle-host-tools", version = "0.1.0", path = "../idle-host-io" }
+idle-host-io = { registry = "idle-host-tools", version = "0.1.1", path = "../idle-host-io" }
 editchain-core = { registry = "idle-editchain", version = "0.1.0" }
 editchain-engine = { registry = "idle-editchain", version = "0.1.0" }
-idle-history-import = { registry = "idle-host-tools", version = "0.1.0", path = "../idle-history-import" }
+idle-history-import = { registry = "idle-host-tools", version = "0.1.1", path = "../idle-history-import" }
 editchain-store = { registry = "idle-editchain", version = "0.1.0" }
 editchain-git = { registry = "idle-editchain", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
