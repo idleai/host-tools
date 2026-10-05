@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/idleai/host-tools/compare/idle-history-import-v0.1.3...idle-history-import-v0.1.4) - 2026-10-05
+
+### Fixed
+
+- restore Windows releases and publish one combined host bundle ([#18](https://github.com/idleai/host-tools/pull/18))
+
 ## [0.1.3](https://github.com/idleai/host-tools/compare/idle-history-import-v0.1.2...idle-history-import-v0.1.3) - 2026-10-05
 
 ### Other
