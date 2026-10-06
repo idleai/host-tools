@@ -17,7 +17,7 @@ use idle_protocol::v1::{
     repository::ReadState,
 };
 
-fn session(root: &Path, ordinal: u8, label: &str) {
+pub(crate) fn session(root: &Path, ordinal: u8, label: &str) {
     let engine = Engine::open(root).expect("chain");
     let item = ItemId::derive("session", b"local-session");
     let mut operation = Operation::new(

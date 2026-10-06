@@ -40,7 +40,10 @@ length prefix. The frame begins with this eight-byte routing header:
 
 Hello advertises `version: 1` and version `1` for `capture`, `history`,
 `collection`, `repository` and `coordination`. Clients validate these before
-opening channels. Channel IDs are positive and increase for the process lifetime;
+opening channels. The optional `features` array includes `repository.local`,
+which permits repository reads with `local_only: true`. Clients must check this
+feature before sending that field to an older host. Missing features are unsupported.
+Channel IDs are positive and increase for the process lifetime;
 closed IDs cannot be reused. Open contains:
 
 ```json

@@ -39,6 +39,11 @@ impl Client {
             Some(&json!(1)),
             "routing version is explicit",
         )?;
+        equal(
+            value.get("features"),
+            Some(&json!(["repository.local"])),
+            "optional local repository reads are advertised before use",
+        )?;
         Ok(client)
     }
 

@@ -99,6 +99,20 @@ impl Reader {
         })
     }
 
+    /// Read the local checkout and recorded sessions without waiting for GitHub.
+    ///
+    /// # Errors
+    /// Rejects an invalid host clock.
+    pub async fn read_local(&self) -> io::Result<Snapshot> {
+        let now = now_ms()?;
+        let git = read_git(&self.binding.root, now).await;
+        let github = git.github.as_ref().map_or_else(
+            || github::Read::absent(now),
+            |remote| github::Read::loading(now, remote),
+        );
+        Ok(self.snapshot(git, github, None, now))
+    }
+
     /// Read one replacement. Failed sources remain explicit while local data works offline.
     /// Credentials never enter a result, cache key string, error message or stored record.
     ///
@@ -119,20 +133,7 @@ impl Reader {
             return Err(io::Error::other("Invalid host GitHub credential."));
         }
         let now = now_ms()?;
-        let mut git =
-            tokio::time::timeout(Duration::from_secs(10), git::read(&self.binding.root, now))
-                .await
-                .unwrap_or_else(|_error| git::Read {
-                    checkout: None,
-                    authors: Vec::new(),
-                    github: None,
-                    reports: vec![report(
-                        "git.checkout",
-                        ReadState::Unavailable,
-                        "The selected Git checkout exceeded its ten-second read deadline.",
-                        now,
-                    )],
-                });
+        let git = read_git(&self.binding.root, now).await;
         let github = if let Some(remote) = git.github.as_ref() {
             let query = github::Query {
                 binding: &self.binding,
@@ -153,16 +154,31 @@ impl Reader {
         } else {
             github::Read::absent(now)
         };
+        Ok(self.snapshot(
+            git,
+            github,
+            credentials.map(|value| value.account.clone()),
+            now,
+        ))
+    }
+
+    fn snapshot(
+        &self,
+        mut git: git::Read,
+        github: github::Read,
+        account: Option<String>,
+        now: u64,
+    ) -> Snapshot {
         let (sessions, sessions_report) = records::sessions(&self.binding.chain_directory, now);
         git.reports.extend(github.reports);
         git.reports.push(sessions_report);
-        Ok(Snapshot {
+        Snapshot {
             repository: RepositorySnapshot {
                 scope: self.binding.scope.clone(),
                 checked_at_ms: now,
                 checkout: git.checkout,
                 github: github.repository,
-                account: credentials.map(|value| value.account.clone()),
+                account,
                 git_authors: git.authors,
                 contributors: github.contributors,
                 collaborators: github.collaborators,
@@ -170,8 +186,24 @@ impl Reader {
                 reports: git.reports,
             },
             projections: github.inputs,
-        })
+        }
     }
+}
+
+async fn read_git(root: &std::path::Path, now: u64) -> git::Read {
+    tokio::time::timeout(Duration::from_secs(10), git::read(root, now))
+        .await
+        .unwrap_or_else(|_error| git::Read {
+            checkout: None,
+            authors: Vec::new(),
+            github: None,
+            reports: vec![report(
+                "git.checkout",
+                ReadState::Unavailable,
+                "The selected Git checkout exceeded its ten-second read deadline.",
+                now,
+            )],
+        })
 }
 
 fn now_ms() -> io::Result<u64> {

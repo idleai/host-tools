@@ -283,6 +283,14 @@ impl Read {
         )
     }
 
+    pub(crate) fn loading(now: u64, remote: &GithubRemote) -> Self {
+        Self::unavailable(
+            now,
+            Some(remote),
+            &Failure::new("GitHub details are loading."),
+        )
+    }
+
     fn unavailable(now: u64, remote: Option<&GithubRemote>, failure: &Failure) -> Self {
         let mut report = crate::report(
             "github.repository",

@@ -238,6 +238,79 @@ fn binding(root: &std::path::Path) -> Binding {
 }
 
 #[tokio::test]
+async fn local_startup_reads_git_and_sessions_without_contacting_github() {
+    let directory = tempfile::tempdir().expect("temporary repository");
+    let installed = binding(directory.path());
+    for arguments in [
+        vec!["init", "--initial-branch=main"],
+        vec![
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/owner/repo.git",
+        ],
+    ] {
+        assert!(
+            std::process::Command::new("git")
+                .arg("-C")
+                .arg(directory.path())
+                .args(arguments)
+                .output()
+                .expect("Git fixture")
+                .status
+                .success()
+        );
+    }
+    crate::record_tests::session(&installed.chain_directory, 1, "Local session");
+    let (http, task, requests) = server(vec![ok(&repository())]).await;
+    let reader = crate::Reader {
+        binding: installed,
+        github: Client { http, recent: None },
+    };
+    let result = tokio::time::timeout(Duration::from_secs(5), reader.read_local())
+        .await
+        .expect("local read does not wait for HTTP")
+        .expect("local snapshot");
+    assert!(requests.lock().expect("request log").is_empty());
+    task.abort();
+    assert_eq!(
+        result
+            .repository
+            .checkout
+            .expect("local checkout")
+            .branch
+            .as_deref(),
+        Some("main")
+    );
+    assert_eq!(
+        result
+            .repository
+            .sessions
+            .first()
+            .expect("local session")
+            .labels,
+        ["Local session"]
+    );
+    assert!(result.repository.github.is_none());
+    assert!(
+        result.projections.iter().all(|input| input.rows.is_empty()),
+        "remote rows have not been read"
+    );
+    assert!(result.projections.iter().all(|input| input.total.is_none()
+        && input.availability == ProjectionAvailability::Unavailable
+        && input.gaps.iter().all(|gap| gap.message.contains("loading"))));
+    assert!(
+        result
+            .repository
+            .reports
+            .iter()
+            .any(|report| report.topic == "github.repository"
+                && report.state == ReadState::Unavailable
+                && report.message.contains("loading"))
+    );
+}
+
+#[tokio::test]
 async fn paginated_fields_map_to_distinct_views_with_exact_retained_sources() {
     let directory = tempfile::tempdir().expect("temporary binding");
     let binding = binding(directory.path());

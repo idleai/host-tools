@@ -210,7 +210,7 @@ pub async fn serve(
         result
     });
     output.send(Frame { kind: Kind::Hello, channel: 0,
-        payload: br#"{"version":1,"services":{"capture":1,"history":1,"collection":1,"repository":1,"coordination":1}}"#.to_vec() }).await?;
+        payload: br#"{"version":1,"services":{"capture":1,"history":1,"collection":1,"repository":1,"coordination":1},"features":["repository.local"]}"#.to_vec() }).await?;
     let mut host = Host {
         channels: BTreeMap::new(),
         workers: JoinSet::new(),
