@@ -50,6 +50,8 @@ pub(super) struct State {
     pub receipts: Vec<StoredResult>,
     pub clock_floor: u64,
     pub handoff: Option<Handoff>,
+    #[serde(default)]
+    pub repository_files: Option<Box<crate::workspace_config::Observation>>,
 }
 
 impl State {
@@ -91,6 +93,7 @@ impl State {
             receipts: Vec::new(),
             clock_floor: 0,
             handoff: None,
+            repository_files: None,
         })
     }
 

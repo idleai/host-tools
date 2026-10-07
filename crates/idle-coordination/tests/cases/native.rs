@@ -79,6 +79,7 @@ async fn automatic_resume_keeps_a_completed_stop_disabled() -> support::TestResu
     drop(peers);
     drop(storage);
     let config = Configuration {
+        workspace_root: None,
         state_directory: root.path().join("private"),
         chain_directory: engine.chain.clone(),
         device_directory: engine.device_directory.clone(),
@@ -202,6 +203,7 @@ async fn standalone_executable_serves_and_recovers_without_node_or_application_h
     seed(&engine.chain, 1, 1, b"native history")?;
     let owner = principal("owner");
     let config = Configuration {
+        workspace_root: None,
         state_directory: root.path().join("private"),
         chain_directory: engine.chain.clone(),
         device_directory: engine.device_directory.clone(),
@@ -520,6 +522,7 @@ async fn startup_cleanup_can_request_host_credentials_before_the_first_service_r
     drop(storage);
     let owner = principal("owner");
     let config = Configuration {
+        workspace_root: None,
         state_directory: root.path().join("private"),
         chain_directory: engine.chain,
         device_directory: engine.device_directory,

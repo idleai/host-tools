@@ -1,0 +1,271 @@
+{
+  "hosts.json": {
+    "$defs": {
+      "ConnectionRoute": {
+        "description": "Discovery reference resolved through an authenticated transport adapter.\n\nThis carries neither credentials nor a cloud-specific tunnel/relay type.",
+        "properties": {
+          "protocol": {
+            "description": "Adapter protocol identifier, negotiated by consumers.",
+            "type": "string"
+          },
+          "reference": {
+            "description": "Opaque, non-secret lookup reference; not a bearer capability.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "protocol",
+          "reference"
+        ],
+        "type": "object"
+      },
+      "HostDefinition": {
+        "additionalProperties": false,
+        "description": "A configured host, independent of a daemon's authenticated publication.",
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/HostId",
+            "description": "Intended host identity."
+          },
+          "name": {
+            "description": "Display name.",
+            "type": "string"
+          },
+          "routes": {
+            "default": [],
+            "description": "Public lookup references; credentials remain in the connecting host.",
+            "items": {
+              "$ref": "#/$defs/ConnectionRoute"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "HostId": {
+        "description": "Compute host identity, reusable across workspace bindings.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Contents of `hosts.json`.",
+    "properties": {
+      "hosts": {
+        "description": "Configured hosts; duplicate identities are invalid.",
+        "items": {
+          "$ref": "#/$defs/HostDefinition"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "hosts"
+    ],
+    "title": "HostDefinitions",
+    "type": "object"
+  },
+  "projections/<id>.json": {
+    "$defs": {
+      "ProjectionKind": {
+        "description": "Presentation destination, not a controller taxonomy or an engine record kind.",
+        "oneOf": [
+          {
+            "const": "activity",
+            "description": "Recorded workspace activity.",
+            "type": "string"
+          },
+          {
+            "const": "task",
+            "description": "Provider-supplied tasks.",
+            "type": "string"
+          },
+          {
+            "const": "error",
+            "description": "Provider-supplied errors.",
+            "type": "string"
+          },
+          {
+            "const": "triage",
+            "description": "Items the provider has placed in triage.",
+            "type": "string"
+          },
+          {
+            "const": "need_input",
+            "description": "Requests the provider has marked as needing human input.",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": true,
+    "description": "Human-editable contents of `projections/<id>.json`.",
+    "properties": {
+      "definition": {
+        "additionalProperties": true,
+        "description": "Query, filters and layout; retain all fields through compatible edits.",
+        "type": "object"
+      },
+      "id": {
+        "description": "Stable identity, matching the filename.",
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/$defs/ProjectionKind",
+        "description": "Supplied projection destination."
+      },
+      "schema_version": {
+        "description": "Definition format version.",
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "title": {
+        "description": "Display title.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "schema_version",
+      "id",
+      "title",
+      "kind",
+      "definition"
+    ],
+    "title": "ProjectionDefinition",
+    "type": "object"
+  },
+  "providers.json": {
+    "$defs": {
+      "ConnectionRoute": {
+        "description": "Discovery reference resolved through an authenticated transport adapter.\n\nThis carries neither credentials nor a cloud-specific tunnel/relay type.",
+        "properties": {
+          "protocol": {
+            "description": "Adapter protocol identifier, negotiated by consumers.",
+            "type": "string"
+          },
+          "reference": {
+            "description": "Opaque, non-secret lookup reference; not a bearer capability.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "protocol",
+          "reference"
+        ],
+        "type": "object"
+      },
+      "HostId": {
+        "description": "Compute host identity, reusable across workspace bindings.",
+        "type": "string"
+      },
+      "ProviderDefinition": {
+        "additionalProperties": false,
+        "description": "An external or host-served provider declaration, without credentials.",
+        "properties": {
+          "credential_ref": {
+            "default": null,
+            "description": "Name resolved by the local credential adapter, never a secret value.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "host_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HostId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Serving host for a local provider; absent for external providers."
+          },
+          "id": {
+            "$ref": "#/$defs/ProviderId",
+            "description": "Intended provider identity."
+          },
+          "name": {
+            "description": "Display name.",
+            "type": "string"
+          },
+          "routes": {
+            "default": [],
+            "description": "Public lookup references, without authentication material.",
+            "items": {
+              "$ref": "#/$defs/ConnectionRoute"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ProviderId": {
+        "description": "Model provider identity, reusable across workspace bindings.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Contents of `providers.json`.",
+    "properties": {
+      "providers": {
+        "description": "Configured providers; duplicate identities are invalid.",
+        "items": {
+          "$ref": "#/$defs/ProviderDefinition"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "providers"
+    ],
+    "title": "ProviderDefinitions",
+    "type": "object"
+  },
+  "workspace.json": {
+    "$defs": {
+      "WorkspaceId": {
+        "description": "Stable logical workspace identity, preserved when adopting managed coordination.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": true,
+    "description": "Tracked workspace identity, independent of a checkout's local history binding.",
+    "properties": {
+      "id": {
+        "$ref": "#/$defs/WorkspaceId",
+        "description": "Stable identity copied with the repository; never an access credential."
+      },
+      "name": {
+        "description": "Human-readable workspace name.",
+        "type": "string"
+      },
+      "schema_version": {
+        "description": "Document family version. This implementation supports one.",
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "schema_version",
+      "id",
+      "name"
+    ],
+    "title": "WorkspaceManifest",
+    "type": "object"
+  }
+}

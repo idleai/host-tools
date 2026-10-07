@@ -6,6 +6,7 @@ mod control;
 mod mutation;
 mod presence;
 mod recovery;
+mod repository;
 mod state;
 mod validation;
 
@@ -66,6 +67,7 @@ pub struct Authority {
     persisted: Vec<u8>,
     presence: BTreeMap<String, Presence>,
     faulted: bool,
+    repository: Option<crate::workspace_config::RepositoryFiles>,
 }
 
 impl Authority {
@@ -110,6 +112,7 @@ impl Authority {
             persisted,
             presence: BTreeMap::new(),
             faulted: false,
+            repository: None,
         })
     }
 
@@ -127,9 +130,18 @@ impl Authority {
         self.healthy()?;
         let now = self.now()?;
         let key = request.context.key();
-        let result = match self.authenticate(principal, &request) {
-            Err(error) => ApiResult::Failure(error),
-            Ok(()) => self.execute_authenticated(principal, request, now)?,
+        let result = if let Err(error) = self.authenticate(principal, &request) {
+            ApiResult::Failure(error)
+        } else {
+            if !self
+                .state
+                .receipts
+                .iter()
+                .any(|stored| stored.request.context.key() == key)
+            {
+                self.refresh_repository()?;
+            }
+            self.execute_authenticated(principal, request, now)?
         };
         Ok(Response {
             api_version: ApiVersion::V1,
@@ -183,8 +195,10 @@ impl Authority {
             return Ok(ApiResult::Failure(failure(ErrorCode::RateLimited)));
         }
         let original = next.clone();
+        let mut file_write = None;
         let result = match next.apply(principal, &request, now) {
             Ok((value, notice)) => {
+                file_write = self.prepare_file_write(&mut next, &request.body)?;
                 next.record_change(notice)?;
                 ApiResult::Success(MutationResult {
                     committed_at: idle_protocol::v1::identity::Timestamp(now),
@@ -206,7 +220,11 @@ impl Authority {
         if bytes.len() > MAX_STATE_BYTES {
             return Ok(ApiResult::Failure(failure(ErrorCode::RateLimited)));
         }
-        self.commit_serialized(next, bytes)?;
+        if let Some(write) = file_write {
+            self.commit_repository(next, bytes, write)?;
+        } else {
+            self.commit_serialized(next, bytes)?;
+        }
         Ok(result)
     }
 
