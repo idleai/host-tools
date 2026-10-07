@@ -76,7 +76,12 @@ impl Authority {
         };
         self.healthy()?;
         let observation = repository.observe()?;
-        if self.state.repository_files.as_deref() == Some(&observation) {
+        if self.state.repository_files.as_deref() == Some(&observation)
+            && self
+                .state
+                .resource_revisions
+                .initialized(&observation.configuration)
+        {
             return Ok(());
         }
         if self.state.handoff.is_some() {
@@ -112,8 +117,10 @@ impl Authority {
             observation.configuration.agent_rules.as_ref(),
         )?;
         sync_views(&mut next, &observation)?;
+        next.sync_resources(&observation.configuration)?;
         next.record_change(ChangeNotice::Directory)?;
         next.repository_files = Some(Box::new(observation));
+        next.validate()?;
         self.commit(next)
     }
 
@@ -250,6 +257,19 @@ fn sync_configuration(
     document: ConfigurationDocument,
     json: Option<&String>,
 ) -> Result<()> {
+    // Deleting a file resets its logical document to a newer empty revision.
+    // Keep that revision while the file remains absent, including after restart.
+    if json.is_none()
+        && state.repository_files.as_ref().is_some_and(|files| {
+            match document {
+                ConfigurationDocument::Settings => &files.configuration.settings,
+                ConfigurationDocument::AgentRules => &files.configuration.agent_rules,
+            }
+            .is_none()
+        })
+    {
+        return Ok(());
+    }
     if state
         .configuration
         .get(&document)
@@ -258,27 +278,23 @@ fn sync_configuration(
     {
         return Ok(());
     }
-    if let Some(json) = json {
-        let revision = revision(
-            state,
-            state
-                .configuration
-                .get(&document)
-                .map(|record| record.revision),
-        )?;
-        let _old = state.configuration.insert(
-            document,
-            Record {
-                revision,
-                value: ConfigurationValue {
-                    schema_version: 1,
-                    json: json.clone(),
-                },
+    let revision = revision(
+        state,
+        state
+            .configuration
+            .get(&document)
+            .map(|record| record.revision),
+    )?;
+    let _old = state.configuration.insert(
+        document,
+        Record {
+            revision,
+            value: ConfigurationValue {
+                schema_version: 1,
+                json: json.cloned().unwrap_or_else(|| "{}".into()),
             },
-        );
-    } else {
-        let _removed = state.configuration.remove(&document);
-    }
+        },
+    );
     state.record_change(ChangeNotice::Configuration(document))
 }
 
@@ -310,69 +326,4 @@ fn revision(state: &State, previous: Option<Revision>) -> Result<Revision> {
         .checked_add(1)
         .map(Revision)
         .ok_or(Error::Invalid)
-}
-
-pub(super) fn configured_resources(
-    snapshot: &mut idle_protocol::v1::standalone::RepositorySnapshot,
-    configuration: &WorkspaceConfiguration,
-) {
-    use idle_protocol::v1::{
-        identity::Timestamp,
-        resources::{Availability, ComputeHost, Health, ModelProvider, ProviderKind},
-    };
-    let health = Health {
-        availability: Availability::Unknown,
-        observed_at: Timestamp(0),
-        valid_until: Timestamp(0),
-    };
-    let revision = Revision(snapshot.as_of.position.0.max(1));
-    // This placeholder cannot match an authenticated resource owner. Definitions
-    // never enter the authority's grant tables or authorize runtime operations.
-    let owner = format!("configured:{}", configuration.manifest.id.0);
-    for host in &configuration.hosts.hosts {
-        if snapshot
-            .hosts
-            .iter()
-            .any(|record| record.value.id == host.id)
-        {
-            continue;
-        }
-        snapshot.hosts.push(Record {
-            revision,
-            value: ComputeHost {
-                id: host.id.clone(),
-                name: host.name.clone(),
-                owner: owner.as_str().into(),
-                capabilities: Vec::new(),
-                health: health.clone(),
-                routes: host.routes.clone(),
-            },
-        });
-    }
-    for provider in &configuration.providers.providers {
-        if snapshot
-            .providers
-            .iter()
-            .any(|record| record.value.id == provider.id)
-        {
-            continue;
-        }
-        snapshot.providers.push(Record {
-            revision,
-            value: ModelProvider {
-                id: provider.id.clone(),
-                name: provider.name.clone(),
-                owner: owner.as_str().into(),
-                kind: provider
-                    .host_id
-                    .as_ref()
-                    .map_or(ProviderKind::External, |host| ProviderKind::Local {
-                        host_id: host.clone(),
-                        runtime_id: "unconnected".into(),
-                    }),
-                health: health.clone(),
-                routes: provider.routes.clone(),
-            },
-        });
-    }
 }

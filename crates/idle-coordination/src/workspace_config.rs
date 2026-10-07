@@ -83,7 +83,10 @@ impl RepositoryFiles {
             return Ok(());
         }
         let documents: BTreeMap<String, String> = if let Some(bytes) = &saved {
-            serde_json::from_slice(bytes)?
+            let documents = serde_json::from_slice(bytes)?;
+            files::check_limits(&documents)?;
+            let _validated = validation::decode(&documents)?;
+            documents
         } else {
             if !self.documents()?.is_empty() {
                 return Err(Error::Conflict);
@@ -120,6 +123,7 @@ impl RepositoryFiles {
                     projection_document(&view.value, None)?,
                 );
             }
+            files::check_limits(&documents)?;
             let _validated = validation::decode(&documents)?;
             storage.compare_exchange(KEY, None, Some(&serde_json::to_vec(&documents)?))?;
             documents

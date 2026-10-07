@@ -57,6 +57,12 @@ them as unknown/unconnected, with no executable capabilities. Actual authorized
 runtime publications take priority over declarations with the same ID. Declared
 resources never enter the authority's grant or controller tables.
 
+Declarations and publications share resource revision history. Publishing a
+configured resource, changing its definition, or changing access advances its
+revision. Expired access can return the declaration without regressing the last
+visible publication. Snapshot revisions remain valid conditional-write tokens;
+unrelated settings edits do not change resource revisions.
+
 A projection is a separate document with an object-valued definition:
 
 ```json
@@ -82,6 +88,9 @@ destinations retain the existing `activity`, `task`, `error`, `triage` and
 existing saved-view contract; evaluating additional query languages or building
 a new projection authoring UI remains with the projection feature owners.
 Unknown compatible manifest and projection document fields survive updates.
+Identifiers use the authority's existing 256-byte limit and cannot be blank;
+display names use its 1024-byte limit and cannot be blank. Control characters
+are rejected in both.
 
 The schema bundle is
 [`workspace-config-v1.json`](../crates/idle-protocol/schemas/workspace-config-v1.json).
@@ -107,6 +116,16 @@ Invalid JSON, merge-conflict markers, duplicate resource IDs, unknown versions,
 symlinks and oversized input produce errors without replacing confirmed state.
 The adapter reads at most 256 projection files and 4 MiB of authored content;
 settings/rules/controller objects have a 256 KiB limit.
+Private resource revision history retains at most 4096 authored host IDs and
+4096 authored provider IDs per checkout, including removed definitions.
+
+Deleting a settings or rules file leaves it absent on disk and advances its
+logical document to an empty `{}` revision. Clean editors adopt that value;
+unsaved drafts require conflict review before saving. The original save receipt
+remains recoverable and cannot recreate the deleted file. A conditional save
+against the reset revision creates the file again. The authored configuration
+read still reports the missing file as absent; a snapshot reports no logical
+record only when the document has never existed in that local authority.
 
 Native writers share a checkout-specific OS lock, compare the previously read
 content, and replace one file atomically. A private journal spans the file write
@@ -123,6 +142,10 @@ once, retains the private originals and request records, and does not recreate a
 deleted definition on restart. A missing or changed manifest after attachment
 requires explicit repair/rebinding. Unsupported older definitions stop migration
 without deleting the originals.
+Migration checks the full seed against the same count and size limits before
+writing any authored files, including when resuming an interrupted migration.
+Oversized legacy configurations retain their private originals for explicit
+export or reorganization; migration never truncates their definitions.
 
 ## Checkout and runtime boundaries
 

@@ -52,6 +52,8 @@ pub(super) struct State {
     pub handoff: Option<Handoff>,
     #[serde(default)]
     pub repository_files: Option<Box<crate::workspace_config::Observation>>,
+    #[serde(default)]
+    pub resource_revisions: super::resources::ResourceRevisions,
 }
 
 impl State {
@@ -94,6 +96,7 @@ impl State {
             clock_floor: 0,
             handoff: None,
             repository_files: None,
+            resource_revisions: super::resources::ResourceRevisions::default(),
         })
     }
 
@@ -102,6 +105,7 @@ impl State {
             return Err(Error::Version);
         }
         self.validate_binding()?;
+        self.resource_revisions.validate()?;
         validate_records(&self.memberships, |value| &value.contributor_id.0)?;
         validate_records(&self.views, |value| &value.id)?;
         validate_records(&self.sessions, |value| &value.id.0)?;

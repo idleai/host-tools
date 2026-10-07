@@ -24,6 +24,12 @@ use idle_protocol::v1::{
 
 use super::support::{self, Memory, TestClock, bootstrap, principal, request};
 
+#[path = "workspace_config_regressions.rs"]
+mod regressions;
+
+#[path = "workspace_config_resources.rs"]
+mod resources;
+
 fn open(root: &Path, memory: Arc<dyn Persistence>) -> Result<Authority> {
     Authority::open_repository(memory, Arc::new(TestClock::default()), bootstrap(), root)
 }
@@ -246,8 +252,17 @@ fn workspace_config_migration_is_once_and_existing_repository_files_win() -> sup
     fs::remove_file(root.path().join(".idle/workspace/settings.json"))?;
     let mut reopened = open(root.path(), memory.clone())?;
     ensure!(
-        reopened.snapshot(&principal("owner"))?.settings.is_none(),
-        "deletion does not resurrect a private copy"
+        reopened.workspace_configuration()?.settings.is_none(),
+        "deletion leaves the authored file absent"
+    )?;
+    let reset = reopened
+        .snapshot(&principal("owner"))?
+        .settings
+        .ok_or(Error::Invalid)?;
+    equal!(
+        reset.value.json,
+        "{}",
+        "deletion resets the logical document"
     )?;
     equal!(
         &reopened.workspace_configuration()?.manifest.id,
@@ -257,7 +272,7 @@ fn workspace_config_migration_is_once_and_existing_repository_files_win() -> sup
     let _saved = saved(
         &mut reopened,
         "recreate",
-        settings(r#"{"new":true}"#, WriteCondition::Absent),
+        settings(r#"{"new":true}"#, WriteCondition::Revision(reset.revision)),
     )?;
     drop(reopened);
     // An unrelated old installation must load the tracked definition, not export over it.

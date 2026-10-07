@@ -7,8 +7,9 @@ mod mutation;
 mod presence;
 mod recovery;
 mod repository;
+mod resources;
 mod state;
-mod validation;
+pub(crate) mod validation;
 
 use std::{
     collections::BTreeMap,
@@ -198,6 +199,9 @@ impl Authority {
         let mut file_write = None;
         let result = match next.apply(principal, &request, now) {
             Ok((value, notice)) => {
+                if matches!(request.body, Mutation::Grant(_) | Mutation::Membership(_)) {
+                    next.advance_resource_access()?;
+                }
                 file_write = self.prepare_file_write(&mut next, &request.body)?;
                 next.record_change(notice)?;
                 ApiResult::Success(MutationResult {

@@ -96,7 +96,8 @@ impl Authority {
             .map_err(|_error| Error::Forbidden)?;
         let mut snapshot = self.state.snapshot(contributor, self.now()?);
         if let Some(files) = &self.state.repository_files {
-            super::repository::configured_resources(&mut snapshot, &files.configuration);
+            self.state
+                .configured_resources(&mut snapshot, &files.configuration)?;
         }
         Ok(snapshot)
     }

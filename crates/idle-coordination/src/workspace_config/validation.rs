@@ -17,7 +17,7 @@ pub(super) fn decode(documents: &BTreeMap<String, String>) -> Result<WorkspaceCo
     if manifest.schema_version != 1 {
         return Err(Error::Version);
     }
-    label(&manifest.id.0)?;
+    id(&manifest.id.0)?;
     label(&manifest.name)?;
     let settings = object(documents.get("settings.json"))?;
     let agent_rules = object(documents.get("agent-rules.json"))?;
@@ -26,7 +26,7 @@ pub(super) fn decode(documents: &BTreeMap<String, String>) -> Result<WorkspaceCo
     let providers: ProviderDefinitions = optional(documents.get("providers.json"))?;
     let mut ids = BTreeSet::new();
     for host in &hosts.hosts {
-        label(&host.id.0)?;
+        id(&host.id.0)?;
         label(&host.name)?;
         routes(&host.routes)?;
         if !ids.insert(&host.id.0) {
@@ -35,7 +35,7 @@ pub(super) fn decode(documents: &BTreeMap<String, String>) -> Result<WorkspaceCo
     }
     ids.clear();
     for provider in &providers.providers {
-        label(&provider.id.0)?;
+        id(&provider.id.0)?;
         label(&provider.name)?;
         routes(&provider.routes)?;
         if !ids.insert(&provider.id.0) {
@@ -45,7 +45,7 @@ pub(super) fn decode(documents: &BTreeMap<String, String>) -> Result<WorkspaceCo
             label(reference)?;
         }
         if let Some(host) = &provider.host_id {
-            label(&host.0)?;
+            id(&host.0)?;
         }
     }
     let mut projections = Vec::new();
@@ -107,7 +107,7 @@ pub(crate) fn projection_document(
 }
 
 pub(crate) fn projection_path(id: &str) -> Result<String> {
-    label(id)?;
+    self::id(id)?;
     let stem = id.split('.').next().unwrap_or_default();
     let reserved = matches!(stem, "con" | "prn" | "aux" | "nul")
         || ["com", "lpt"].iter().any(|prefix| {
@@ -146,10 +146,11 @@ fn optional<T: DeserializeOwned + Default>(text: Option<&String>) -> Result<T> {
 }
 
 fn label(value: &str) -> Result<()> {
-    if value.is_empty() || value.len() > 1024 || value.chars().any(char::is_control) {
-        return Err(Error::Invalid);
-    }
-    Ok(())
+    crate::authority::validation::label(value).map_err(|_error| Error::Invalid)
+}
+
+fn id(value: &str) -> Result<()> {
+    crate::authority::validation::id(value).map_err(|_error| Error::Invalid)
 }
 
 fn routes(routes: &[idle_protocol::v1::resources::ConnectionRoute]) -> Result<()> {
