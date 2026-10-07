@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5](https://github.com/idleai/host-tools/compare/idle-editor-capture-v0.1.4...idle-editor-capture-v0.1.5) - 2026-10-07
+
+### Other
+
+- update Cargo.lock dependencies
+
 ## [0.1.4](https://github.com/idleai/host-tools/compare/idle-editor-capture-v0.1.3...idle-editor-capture-v0.1.4) - 2026-10-05
 
 ### Fixed

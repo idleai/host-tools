@@ -16,7 +16,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.1.4"
+version = "0.1.5"
 
 # Dev Tunnels uses Microsoft's OpenSSL SSH fork, as does the native VS Code CLI.
 # Pin every package to the same reviewed source; keep SDK/SSH integration tests together.

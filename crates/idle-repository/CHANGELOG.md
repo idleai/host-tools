@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5](https://github.com/idleai/host-tools/compare/idle-repository-v0.1.4...idle-repository-v0.1.5) - 2026-10-07
+
+### Other
+
+- *(f43/d9-sidebar-structure)* serve local repository data before GitHub reads ([#19](https://github.com/idleai/host-tools/pull/19))
+
 ## [0.1.4](https://github.com/idleai/host-tools/compare/idle-repository-v0.1.3...idle-repository-v0.1.4) - 2026-10-05
 
 ### Fixed

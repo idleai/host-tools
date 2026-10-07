@@ -12,8 +12,8 @@ keywords = ["git", "github", "idle"]
 categories = ["development-tools"]
 
 [dependencies]
-idle-host-io = { registry = "idle-host-tools", version = "0.1.4", path = "../idle-host-io", features = ["async"] }
-idle-protocol = { registry = "idle-host-tools", version = "0.1.4", path = "../idle-protocol" }
+idle-host-io = { registry = "idle-host-tools", version = "0.1.5", path = "../idle-host-io", features = ["async"] }
+idle-protocol = { registry = "idle-host-tools", version = "0.1.5", path = "../idle-protocol" }
 editchain-core = { registry = "idle-editchain", version = "0.1.0" }
 editchain-engine = { registry = "idle-editchain", version = "0.1.0" }
 blake3 = "1"

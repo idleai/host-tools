@@ -12,8 +12,8 @@ keywords = ["idle", "history", "development"]
 categories = ["development-tools"]
 
 [dependencies]
-idle-host-io = { registry = "idle-host-tools", version = "0.1.4", path = "../idle-host-io" }
-idle-history = { registry = "idle-host-tools", version = "0.1.4", path = "../idle-history" }
+idle-host-io = { registry = "idle-host-tools", version = "0.1.5", path = "../idle-host-io" }
+idle-history = { registry = "idle-host-tools", version = "0.1.5", path = "../idle-history" }
 editchain-core = { registry = "idle-editchain", version = "0.1.0" }
 editchain-store = { registry = "idle-editchain", version = "0.1.0" }
 editchain-git = { registry = "idle-editchain", version = "0.1.0" }
