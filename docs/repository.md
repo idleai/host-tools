@@ -5,6 +5,11 @@ session items without a running agent or managed service. Hosts install one
 immutable workspace/repository/chain binding and absolute checkout/history paths.
 The shared snapshot types live in `idle-protocol::v1::repository`.
 
+`Reader::read_local` returns the checkout and recorded sessions without HTTP or
+credentials. A configured GitHub source is reported as still loading. Hosts can
+display this initial snapshot while requesting complete data on a separate
+channel; local startup does not queue behind an in-progress GitHub read.
+
 Git commands run in the selected folder without fetching or changing the worktree.
 The reader removes ambient `GIT_*` overrides, disables external fsmonitor and
 optional locks, and limits each command to five seconds and the Git read to ten.
@@ -67,6 +72,10 @@ and replies use four-byte little-endian length-prefixed JSON:
 ```json
 {"id":1,"body":{"credentials":null,"refresh_github":false}}
 ```
+
+The optional `local_only: true` field selects the local read. It defaults to false,
+so existing requests still include GitHub. The shared native host advertises
+`repository.local` in its handshake before clients may use this field.
 
 Replies carry the same `id` and `body: {"Ok": {"repository": ..., "projections": ...}}`
 or a safe `Err` message. Requests are limited to 16 KiB and replies to eight MiB.
