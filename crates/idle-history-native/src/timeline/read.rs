@@ -9,7 +9,6 @@ use editchain_index::{
     OrderedMap,
     rank::{Axis, Measure, RankTree},
 };
-use history_geometry::live::{GraphNode, Order, RowGeometry};
 use idle_history::{
     query::Filter,
     timeline::{
@@ -17,6 +16,7 @@ use idle_history::{
         Transition, VERSION, View, Window,
     },
 };
+use idle_history_graph::live::{GraphNode, Order, RowGeometry};
 use serde::{Deserialize, Serialize};
 
 use super::{

@@ -3,6 +3,3 @@ index = "sparse+https://raw.githubusercontent.com/idleai/editchain/cargo-index/"
 
 [registries.idle-host-tools]
 index = "sparse+https://raw.githubusercontent.com/idleai/host-tools/cargo-index/"
-
-[registries.idle-web-ui]
-index = "sparse+https://raw.githubusercontent.com/idleai/web-ui/cargo-index/"

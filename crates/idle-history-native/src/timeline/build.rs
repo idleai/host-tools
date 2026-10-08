@@ -8,8 +8,8 @@ use std::{
 
 use editchain_engine::queries::{ChainQueries, Lookup, PageRequest};
 use editchain_index::rank::Measure;
-use history_geometry::live::GraphNode;
 use idle_history::timeline::Source;
+use idle_history_graph::live::GraphNode;
 
 use super::{
     facts, groups, logical,

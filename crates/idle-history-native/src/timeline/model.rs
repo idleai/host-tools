@@ -4,11 +4,11 @@ use std::collections::BTreeSet;
 
 use editchain_core::{SourceId, activity::Entity};
 use editchain_index::{IndexRevision, Map, OrderedMap, OrderedSet, rank::RankTree};
-use history_geometry::live::{GraphNode, LiveGraph, Order};
 use idle_history::{
     provider::ProviderEvidence,
     timeline::{Group, Relationship, Row, Source},
 };
+use idle_history_graph::live::{GraphNode, LiveGraph, Order};
 use serde::{Deserialize, Serialize};
 
 /// Algorithm identity is separate from the transport contract.

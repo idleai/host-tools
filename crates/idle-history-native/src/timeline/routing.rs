@@ -3,7 +3,7 @@
 use std::ops::Bound::{Excluded, Unbounded};
 
 use editchain_index::rank::Measure;
-use history_geometry::live::Order;
+use idle_history_graph::live::Order;
 
 use super::{
     model::{BATCH, Build, Phase, Snapshot},
@@ -12,7 +12,7 @@ use super::{
 
 pub(super) fn prepare(ready: &Snapshot) -> Snapshot {
     let mut snapshot = ready.clone();
-    snapshot.graph = history_geometry::live::LiveGraph::default();
+    snapshot.graph = idle_history_graph::live::LiveGraph::default();
     snapshot.groups.clear();
     snapshot.membership.clear();
     snapshot.group_details.clear();

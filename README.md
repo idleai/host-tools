@@ -10,6 +10,7 @@ workspace has no dependency on app-core, a renderer or the VS Code API.
 | `idle-protocol` | Versioned requests, responses, events and JSON Schema shared by clients, Evo and managed/standalone services. | Native and WASM |
 | `idle-coordination` | Repository metadata, settings/rules, views, peer activity, grants, controller ownership and native peer coordination. Library and framed service. | Native |
 | `idle-history` | Portable history queries/results, repository bindings, projection inputs, source contracts and pure peer helpers. | Native and WASM |
+| `idle-history-graph` | Portable activity ordering, causal lanes and retained graph routes. | Native and WASM |
 | `idle-editor-capture` | Editor observation validation, conversion, archive replay and durable writer; `idle-editor-service` executable. | Native |
 | `idle-history-native` | Shared history queries, exact record/file/diff reads and author/exposure projections; `idle-history-service` executable. | Native |
 | `idle-history-import` | Claude, Codex and human archive import, schema conversion and source reconciliation. | Native |
@@ -35,8 +36,9 @@ npm --prefix packages/history-runtime ci
 ./scripts/check.sh
 ```
 
-The lint suite checks all native packages and explicitly checks the two
-portable packages on WASM. It retains import fixtures, schema drift checks,
+The lint suite checks all native packages and explicitly checks the three
+portable packages on WASM. It rejects application and UI packages in the resolved
+dependency graph. It retains import fixtures, schema drift checks,
 durable recovery tests and Rust/Clippy/Rustdoc/dependency checks.
 It also tests two native peers, interoperability with the existing TypeScript
 peer bridge, service restart and managed handoff through an injected adapter.

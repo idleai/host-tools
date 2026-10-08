@@ -2,8 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use history_geometry::live::GraphNode;
 use idle_history::timeline::Group;
+use idle_history_graph::live::GraphNode;
 
 use super::{
     logical,

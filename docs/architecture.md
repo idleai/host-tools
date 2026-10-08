@@ -28,6 +28,13 @@ back on the application reducer. App-core and native coordination use its pure
 connection helpers directly; app-core owns the client model and subscription
 effects.
 
+`idle-history-graph` owns generic activity ordering, causal lanes and retained
+routes. Its runtime dependencies are `editchain-index` and Serde. Native timeline
+queries and web-ui use the same algorithms; pixel coordinates, browser layout,
+SVG paths and animation remain in web-ui. The host workspace has no dependency
+on the web-ui repository. The canonical lint suite checks the complete resolved
+dependency graph, including transitive packages, for application and UI packages.
+
 Native packages depend on these contracts and EditChain. EditChain knows only
 its own schema, storage, indexes, queries, replication and tooling. It has no
 application or host-tools dependency.

@@ -19,7 +19,7 @@ use idle_history::{
 };
 use idle_history_native::{history::service::Binding, timeline};
 use {
-    editchain_index as _, history_geometry as _, idle_editor_capture as _,
+    editchain_index as _, idle_editor_capture as _, idle_history_graph as _,
     idle_history_import as _, idle_host_io as _, idle_protocol as _, idle_repository as _,
     serde as _, tempfile as _,
 };
