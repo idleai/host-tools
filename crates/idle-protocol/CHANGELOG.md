@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/idleai/host-tools/compare/idle-protocol-v0.1.5...idle-protocol-v0.2.0) - 2026-10-08
+
+### Other
+
+- *(f43/d10-workspace-config)* persist repository workspace definitions ([#20](https://github.com/idleai/host-tools/pull/20))
+
 ## [0.1.2](https://github.com/idleai/host-tools/compare/idle-protocol-v0.1.1...idle-protocol-v0.1.2) - 2026-10-05
 
 ### Other

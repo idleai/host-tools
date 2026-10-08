@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/idleai/host-tools/compare/idle-history-native-v0.1.5...idle-history-native-v0.2.0) - 2026-10-08
+
+### Other
+
+- *(f43/d10-workspace-config)* persist repository workspace definitions ([#20](https://github.com/idleai/host-tools/pull/20))
+
 ## [0.1.5](https://github.com/idleai/host-tools/compare/idle-history-native-v0.1.4...idle-history-native-v0.1.5) - 2026-10-07
 
 ### Other
