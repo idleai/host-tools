@@ -103,3 +103,10 @@ through testing and packaging. Rebuilding a commit can select newer versions.
 Successful main CI starts automatic crate and native bundle publication. See
 [packaging and releases](docs/packaging.md) for the workflow, retries and testing
 unpublished dependencies.
+
+## Repository workspace configuration
+
+Standalone clients can keep authored settings, rules, projections, controller
+configuration and resource declarations in tracked `.idle/workspace/` files.
+See [the storage contract](docs/workspace-config.md) for migration, native APIs,
+file schemas, clone recovery and checkout behavior.

@@ -94,7 +94,12 @@ impl Authority {
             .state
             .member(contributor)
             .map_err(|_error| Error::Forbidden)?;
-        Ok(self.state.snapshot(contributor, self.now()?))
+        let mut snapshot = self.state.snapshot(contributor, self.now()?);
+        if let Some(files) = &self.state.repository_files {
+            self.state
+                .configured_resources(&mut snapshot, &files.configuration)?;
+        }
+        Ok(snapshot)
     }
 
     /// Recover ordered notifications, or explicitly request a replacement snapshot.

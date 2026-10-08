@@ -27,6 +27,10 @@ use super::Service;
 pub struct Configuration {
     /// Private state directory, exclusively owned for this process lifetime.
     pub state_directory: PathBuf,
+    /// Optional checkout whose tracked `.idle/workspace` definitions back metadata.
+    /// Omit on account-scoped sharing channels and older standalone integrations.
+    #[serde(default)]
+    pub workspace_root: Option<PathBuf>,
     /// Existing local chain storage; logical identity comes from `workspace.chain`.
     pub chain_directory: PathBuf,
     /// Persistent private engine device key directory.
@@ -76,14 +80,15 @@ impl Configuration {
             contributor: self.contributor,
             runtime: self.runtime,
         };
-        let authority = Authority::open(
-            storage.clone(),
-            clock.clone(),
-            Some(Bootstrap {
-                workspace: self.workspace,
-                owner: principal.contributor.contributor_id.clone(),
-            }),
-        )?;
+        let bootstrap = Bootstrap {
+            workspace: self.workspace,
+            owner: principal.contributor.contributor_id.clone(),
+        };
+        let authority = if let Some(root) = self.workspace_root {
+            Authority::open_repository(storage.clone(), clock.clone(), bootstrap, &root)?
+        } else {
+            Authority::open(storage.clone(), clock.clone(), Some(bootstrap))?
+        };
         let engine = Engine {
             chain: self.chain_directory,
             device_directory: self.device_directory,

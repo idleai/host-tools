@@ -17,6 +17,7 @@ pub mod resources;
 pub mod sessions;
 pub mod standalone;
 pub mod workspace;
+pub mod workspace_config;
 
 use serde::{Deserialize, Serialize};
 

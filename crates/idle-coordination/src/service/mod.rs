@@ -48,6 +48,8 @@ pub enum Command {
     Versions,
     /// Read the currently authorized replacement snapshot.
     Snapshot,
+    /// Read authored definitions, stable workspace identity and content revision.
+    WorkspaceConfiguration,
     /// Authorize and commit an idempotent repository mutation.
     Mutate(Box<Request<Mutation>>),
     /// Resolve the original outcome after an uncertain response.
@@ -158,6 +160,12 @@ impl Service {
         }
         if matches!(
             command,
+            Command::Snapshot | Command::WorkspaceConfiguration | Command::CatchUp { .. }
+        ) {
+            self.authority.refresh_repository()?;
+        }
+        if matches!(
+            command,
             Command::Host { .. }
                 | Command::Join { .. }
                 | Command::Resume
@@ -173,8 +181,10 @@ impl Service {
                 "service": SERVICE_VERSION, "repository_api": 1, "invitation": 1, "saved_sharing": 1,
                 "discovery": crate::invitation::DISCOVERY_PROTOCOL, "engine_peer": editchain_sync::PEER_VERSION,
                 "tunnels_revision": crate::dev_tunnels::SDK_REVISION,
+                "workspace_configuration": 1,
             })),
             Command::Snapshot => value(&self.authority.snapshot(&self.principal)?),
+            Command::WorkspaceConfiguration => value(self.authority.workspace_configuration()?),
             Command::Mutate(request) => value(&self.authority.execute(&self.principal, *request)?),
             Command::RequestStatus(key) => {
                 value(&self.authority.request_status(&self.principal, &key)?)

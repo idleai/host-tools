@@ -60,11 +60,14 @@ impl State {
                         ErrorCode::UnsupportedVersion,
                     )?;
                 }
-                let record = validation::record(
+                let mut record = validation::record(
                     current,
                     &write.change.expected,
                     write.change.value.clone(),
                 )?;
+                if self.repository_files.is_some() {
+                    record.revision.0 = record.revision.0.max(self.sequence.saturating_add(1));
+                }
                 let _previous = self.configuration.insert(write.document, record.clone());
                 Ok((
                     MutationValue::Configuration(record),
@@ -80,11 +83,14 @@ impl State {
                     json: change.value.json.clone(),
                 })?;
                 capacity(&self.views, &change.value.id)?;
-                let record = validation::record(
+                let mut record = validation::record(
                     self.views.get(&change.value.id),
                     &change.expected,
                     change.value.clone(),
                 )?;
+                if self.repository_files.is_some() {
+                    record.revision.0 = record.revision.0.max(self.sequence.saturating_add(1));
+                }
                 let _previous = self.views.insert(change.value.id.clone(), record.clone());
                 Ok((MutationValue::View(record), ChangeNotice::Views))
             }
@@ -154,11 +160,20 @@ impl State {
                     )?;
                 }
                 capacity(&self.hosts, &change.value.id.0)?;
-                let record = validation::record(
+                let mut record = validation::record(
                     self.hosts.get(&change.value.id.0),
                     &change.expected,
                     change.value.clone(),
                 )?;
+                if self
+                    .resource_revisions
+                    .hosts
+                    .contains_key(&change.value.id.0)
+                {
+                    record.revision = self
+                        .advance_host_revision(&change.value.id.0)
+                        .map_err(|_error| failure(ErrorCode::Conflict))?;
+                }
                 let _previous = self.hosts.insert(change.value.id.0.clone(), record.clone());
                 Ok((MutationValue::Host(record), ChangeNotice::Directory))
             }
@@ -193,11 +208,20 @@ impl State {
                     )?;
                 }
                 capacity(&self.providers, &change.value.id.0)?;
-                let record = validation::record(
+                let mut record = validation::record(
                     self.providers.get(&change.value.id.0),
                     &change.expected,
                     change.value.clone(),
                 )?;
+                if self
+                    .resource_revisions
+                    .providers
+                    .contains_key(&change.value.id.0)
+                {
+                    record.revision = self
+                        .advance_provider_revision(&change.value.id.0)
+                        .map_err(|_error| failure(ErrorCode::Conflict))?;
+                }
                 let _previous = self
                     .providers
                     .insert(change.value.id.0.clone(), record.clone());

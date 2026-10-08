@@ -40,14 +40,14 @@ pub(super) fn require(condition: bool, code: ErrorCode) -> Checked<()> {
     }
 }
 
-pub(super) fn id(value: &str) -> Checked<()> {
+pub(crate) fn id(value: &str) -> Checked<()> {
     require(
         !value.trim().is_empty() && value.len() <= 256 && !value.chars().any(char::is_control),
         ErrorCode::InvalidRequest,
     )
 }
 
-pub(super) fn label(value: &str) -> Checked<()> {
+pub(crate) fn label(value: &str) -> Checked<()> {
     require(
         !value.trim().is_empty() && value.len() <= 1024 && !value.chars().any(char::is_control),
         ErrorCode::InvalidRequest,

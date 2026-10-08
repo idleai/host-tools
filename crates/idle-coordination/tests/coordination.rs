@@ -32,6 +32,10 @@ mod native;
 #[path = "cases/peers.rs"]
 mod peers;
 
+#[cfg(test)]
+#[path = "cases/workspace_config.rs"]
+mod workspace_config;
+
 use {
     editchain_sync as _, reqwest as _, russh as _, serde as _, sha2 as _, thiserror as _,
     tunnels as _, url as _,

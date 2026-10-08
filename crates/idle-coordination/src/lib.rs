@@ -11,6 +11,7 @@ pub mod peer;
 pub mod persistence;
 pub mod service;
 pub mod transport;
+pub mod workspace_config;
 
 pub use error::{Error, Result};
 
