@@ -41,8 +41,8 @@ impl Client {
         )?;
         equal(
             value.get("features"),
-            Some(&json!(["repository.local"])),
-            "optional local repository reads are advertised before use",
+            Some(&json!(["repository.local", "runtime.workspace"])),
+            "optional repository and runtime reads are advertised before use",
         )?;
         Ok(client)
     }

@@ -34,15 +34,8 @@ pub(crate) async fn run(
     lifetime: Lifetime,
 ) -> io::Result<()> {
     match binding {
-        Binding::Coordination(configuration) => {
-            Box::pin(coordination(
-                channel,
-                *configuration,
-                input,
-                output,
-                lifetime.cancel,
-            ))
-            .await
+        binding @ (Binding::Coordination(_) | Binding::Runtime(_)) => {
+            Box::pin(piped(channel, binding, input, output, lifetime.cancel)).await
         }
         Binding::Repository(binding) => {
             repository(channel, binding, input, output, lifetime.cancel).await
@@ -77,7 +70,9 @@ impl Blocking {
                     .map(Box::new)
                     .map(Self::Collection)
             }
-            Binding::Repository(_) | Binding::Coordination(_) => Err(super::protocol::invalid()),
+            Binding::Repository(_) | Binding::Coordination(_) | Binding::Runtime(_) => {
+                Err(super::protocol::invalid())
+            }
         }
     }
 
@@ -147,9 +142,9 @@ async fn repository(
     Ok(())
 }
 
-async fn coordination(
+async fn piped(
     channel: u32,
-    configuration: idle_coordination::service::native::Configuration,
+    binding: Binding,
     mut input: Input,
     output: Output,
     cancel: CancellationToken,
@@ -203,9 +198,25 @@ async fn coordination(
         Ok::<_, io::Error>(())
     };
     let serving = async {
-        idle_coordination::service::serve_configuration(configuration, reader, writer, &cancel)
-            .await
-            .map_err(io::Error::other)
+        match binding {
+            Binding::Coordination(configuration) => {
+                idle_coordination::service::serve_configuration(
+                    *configuration,
+                    reader,
+                    writer,
+                    &cancel,
+                )
+                .await
+                .map_err(io::Error::other)
+            }
+            Binding::Runtime(binding) => {
+                idle_coordination::runtime::serve_client(binding, reader, writer, &cancel).await
+            }
+            Binding::Capture(_)
+            | Binding::History(_)
+            | Binding::Collection(_)
+            | Binding::Repository(_) => Err(super::protocol::invalid()),
+        }
     };
     let _completed = tokio::try_join!(feeding, emitting, serving)?;
     Ok(())

@@ -11,7 +11,7 @@ use crate::{
     invitation::{HostLease, Invitation, RelayEndpoint, Secret},
 };
 
-/// Opaque bidirectional stream; only the engine's authenticated peer bytes enter it.
+/// Opaque bidirectional stream. Each caller supplies its port's authentication protocol.
 pub trait PeerStream: AsyncRead + AsyncWrite + Send + Unpin {}
 impl<T: AsyncRead + AsyncWrite + Send + Unpin> PeerStream for T {}
 
@@ -19,7 +19,8 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin> PeerStream for T {}
 pub type BoxStream = Box<dyn PeerStream>;
 
 /// Privately issued connect descriptor. Debug output redacts its bearer grant.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RelayDescriptor {
     /// Public endpoint, including SSH host keys.
     pub endpoint: RelayEndpoint,

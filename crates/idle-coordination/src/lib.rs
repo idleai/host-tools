@@ -9,6 +9,7 @@ mod error;
 pub mod invitation;
 pub mod peer;
 pub mod persistence;
+pub mod runtime;
 pub mod service;
 pub mod transport;
 pub mod workspace_config;

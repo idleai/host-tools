@@ -10,7 +10,7 @@ use tunnels::{
 
 use crate::{
     Error, Result,
-    invitation::{Invitation, MULTIPLAYER_PORT, token_expiration},
+    invitation::{Invitation, RelayEndpoint, Secret, token_expiration},
     transport::{BoxStream, ClientTransport, bounded},
 };
 
@@ -21,18 +21,35 @@ pub(super) async fn resolve(
     invitation: &Invitation,
     cancel: &CancellationToken,
 ) -> Result<Invitation> {
-    invitation.endpoint.validate()?;
-    if token_expiration(&invitation.connect_token)? <= owner.clock.now_ms()? {
+    let mut replacement = invitation.clone();
+    replacement.endpoint = resolve_endpoint(
+        owner,
+        &invitation.endpoint,
+        &invitation.connect_token,
+        cancel,
+    )
+    .await?;
+    Ok(replacement)
+}
+
+pub(super) async fn resolve_endpoint(
+    owner: &DevTunnels,
+    route: &RelayEndpoint,
+    token: &Secret,
+    cancel: &CancellationToken,
+) -> Result<RelayEndpoint> {
+    route.validate()?;
+    if token_expiration(token)? <= owner.clock.now_ms()? {
         return Err(Error::Expired);
     }
     let mut builder = new_tunnel_management("idle-coordination/0.1");
-    let _builder = builder.client(owner.http.clone()).authorization(
-        tunnels::management::Authorization::Tunnel(invitation.connect_token.0.clone()),
-    );
+    let _builder = builder
+        .client(owner.http.clone())
+        .authorization(tunnels::management::Authorization::Tunnel(token.0.clone()));
     let management: TunnelManagementClient = builder.into();
     let locator = tunnels::management::TunnelLocator::ID {
-        cluster: invitation.endpoint.cluster_id.clone(),
-        id: invitation.endpoint.tunnel_id.clone(),
+        cluster: route.cluster_id.clone(),
+        id: route.tunnel_id.clone(),
     };
     let options = tunnels::management::TunnelRequestOptions {
         include_ports: true,
@@ -45,12 +62,12 @@ pub(super) async fn resolve(
             .map_err(safe_http)
     })
     .await?;
-    if tunnel.tunnel_id.as_ref() != Some(&invitation.endpoint.tunnel_id)
-        || tunnel.cluster_id.as_ref() != Some(&invitation.endpoint.cluster_id)
+    if tunnel.tunnel_id.as_ref() != Some(&route.tunnel_id)
+        || tunnel.cluster_id.as_ref() != Some(&route.cluster_id)
         || !tunnel
             .ports
             .iter()
-            .any(|port| port.port_number == MULTIPLAYER_PORT)
+            .any(|port| port.port_number == owner.port)
     {
         return Err(Error::Forbidden);
     }
@@ -61,7 +78,7 @@ pub(super) async fn resolve(
         .collect();
     let endpoint = endpoints
         .iter()
-        .find(|endpoint| endpoint.host_id == invitation.endpoint.host_id)
+        .find(|endpoint| endpoint.host_id == route.host_id)
         .copied()
         .or_else(|| {
             if endpoints.len() == 1 {
@@ -71,18 +88,17 @@ pub(super) async fn resolve(
             }
         })
         .ok_or(Error::Transport)?;
-    let mut replacement = invitation.clone();
-    replacement.endpoint.host_id.clone_from(&endpoint.host_id);
+    let mut replacement = route.clone();
+    replacement.host_id.clone_from(&endpoint.host_id);
     replacement
-        .endpoint
         .host_public_keys
         .clone_from(&endpoint.host_public_keys);
-    replacement.endpoint.client_relay_uri = endpoint
+    replacement.client_relay_uri = endpoint
         .tunnel_relay_tunnel_endpoint
         .client_relay_uri
         .clone()
         .ok_or(Error::Invalid)?;
-    replacement.endpoint.validate()?;
+    replacement.validate()?;
     Ok(replacement)
 }
 
@@ -91,11 +107,25 @@ pub(super) async fn connect(
     invitation: &Invitation,
     cancel: &CancellationToken,
 ) -> Result<Box<dyn ClientTransport>> {
-    invitation.endpoint.validate()?;
-    if token_expiration(&invitation.connect_token)? <= owner.clock.now_ms()? {
+    connect_endpoint(
+        owner,
+        &invitation.endpoint,
+        &invitation.connect_token,
+        cancel,
+    )
+    .await
+}
+
+pub(super) async fn connect_endpoint(
+    owner: &DevTunnels,
+    route: &RelayEndpoint,
+    token: &Secret,
+    cancel: &CancellationToken,
+) -> Result<Box<dyn ClientTransport>> {
+    route.validate()?;
+    if token_expiration(token)? <= owner.clock.now_ms()? {
         return Err(Error::Expired);
     }
-    let route = &invitation.endpoint;
     let endpoint = TunnelEndpoint {
         id: None,
         connection_mode: TunnelConnectionMode::TunnelRelay,
@@ -117,7 +147,7 @@ pub(super) async fn connect(
     let client = RelayTunnelClient::new(management);
     let handle = bounded(cancel, REQUEST_TIMEOUT, async {
         client
-            .connect(&endpoint, &invitation.connect_token.0)
+            .connect(&endpoint, &token.0)
             .await
             .map_err(|_error| Error::Transport)
     })
@@ -129,7 +159,7 @@ pub(super) async fn connect(
     let handle = connection.handle.as_ref().ok_or(Error::Transport)?;
     let stream = bounded(cancel, REQUEST_TIMEOUT, async {
         handle
-            .connect_to_port(MULTIPLAYER_PORT)
+            .connect_to_port(owner.port)
             .await
             .map_err(|_error| Error::Transport)
     })
