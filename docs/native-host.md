@@ -66,6 +66,17 @@ only its standalone stream length prefix is omitted inside Data. This is a
 custom framed protocol, not JSON-RPC 2.0. The router never parses or rewrites
 service JSON, preserving exact captured records and full Rust integer values.
 
+The history channel also accepts `{ "capabilities": true }`. Its response body
+is `{ "Ok": { "timeline": 2, "operation_json": true } }`. Consumers check this
+before sending `QueryAction::Timeline` or an `OperationJson` native action. The
+outer history channel version and existing raw queries remain supported.
+
+Timeline version 2 distinguishes recorded operation addresses from Git commit
+destinations. The host may install a trusted `repository_directory` with the
+history binding. This enables read-only HEAD history and immutable commit/patch
+documents; requests carry the repository identity and full OID, never a path.
+Existing history bindings without that directory continue serving recorded data.
+
 ## Ownership and limits
 
 Requests execute in order within a channel. Filesystem services have independent

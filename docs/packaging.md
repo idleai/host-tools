@@ -80,9 +80,13 @@ committed manifests and lockfiles.
 
 For a full check, use
 [memos/scripts/check-integration.py](https://github.com/idleai/memos/blob/v1/scripts/check-integration.py)
-with explicit `--producer` and `--consumer` checkout paths. It patches Cargo,
-builds candidate native bundles when needed, runs the consumer's normal check
-script and restores dependency files. The manual
+with explicit `--producer` and `--consumer` checkout paths. Repeat `--producer`
+for paired changes, listing native producers in dependency order. The helper
+selects candidate Cargo packages, builds compatible native bundles, runs the
+consumer's normal check script and restores dependency files on success or
+failure. `--output /path/to/results` retains candidate bundles and dependency
+records with their checksums. Temporary registry overrides stay outside the
+normal manifests; declared minimum versions must match the APIs being consumed. The manual
 [Unpublished package integration workflow](https://github.com/idleai/memos/blob/v1/.github/workflows/integration.yml)
 runs the same check for selected branches.
 

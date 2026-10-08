@@ -15,6 +15,18 @@ const MAX_FILE_BYTES: u64 = 1_048_576;
 const MAX_TOTAL_BYTES: usize = 4 * 1_048_576;
 const MAX_PROJECTIONS: usize = 256;
 
+/// Exclusive ownership of a repository write for one operation.
+#[derive(Debug)]
+pub(crate) struct WorkspaceLock(File);
+
+impl Drop for WorkspaceLock {
+    fn drop(&mut self) {
+        // A concurrent process launch can inherit the descriptor until exec.
+        // Release ownership even while that duplicate is still open.
+        let _unlocked = self.0.unlock();
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct FileWrite {
     pub name: String,
@@ -109,7 +121,7 @@ impl RepositoryFiles {
         Ok(documents)
     }
 
-    pub(crate) fn lock(&self) -> Result<File> {
+    pub(crate) fn lock(&self) -> Result<WorkspaceLock> {
         let digest = blake3::hash(self.directory.as_os_str().as_encoded_bytes());
         let path = std::env::temp_dir().join(format!("idle-workspace-{digest}.lock"));
         if fs::symlink_metadata(&path)
@@ -126,7 +138,7 @@ impl RepositoryFiles {
         }
         let file = options.open(path)?;
         file.try_lock().map_err(|_error| Error::Busy)?;
-        Ok(file)
+        Ok(WorkspaceLock(file))
     }
 
     pub(crate) fn finish_write(&self, write: &FileWrite) -> Result<()> {
@@ -208,4 +220,26 @@ fn sync_directory(path: &Path) -> Result<()> {
     #[cfg(not(unix))]
     let _path = path;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Error, RepositoryFiles};
+
+    #[test]
+    fn workspace_lock_releases_after_its_owner_drops_with_a_duplicate_handle()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let repository = RepositoryFiles::open(root.path())?;
+        let guard = repository.lock()?;
+        let duplicate = guard.0.try_clone()?;
+        if !matches!(repository.lock(), Err(Error::Busy)) {
+            return Err("the active owner must exclude another writer".into());
+        }
+        drop(guard);
+        let next = repository.lock()?;
+        drop(duplicate);
+        drop(next);
+        Ok(())
+    }
 }

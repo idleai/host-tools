@@ -121,4 +121,5 @@ cargo test -p idle-history-import --test import_api --locked
 ```
 
 Provider parsing, identity, retry and conversion tests run in this package.
-Application history projection and geometry tests run in app-core and web-ui.
+Shared graph tests run in `idle-history-graph`. Application history projection
+and browser geometry tests run in app-core and web-ui.

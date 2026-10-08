@@ -29,6 +29,7 @@ pub struct Converter {
     derived: BTreeMap<OpId, Derived>,
     folded: BTreeMap<OpId, Vec<OpId>>,
     removed: BTreeSet<OpId>,
+    source_summaries: BTreeSet<OpId>,
     redirects: BTreeMap<OpId, OpId>,
     sessions: BTreeMap<u64, ItemId>,
     retained: BTreeMap<OpId, OpId>,
@@ -247,6 +248,7 @@ impl Converter {
                 let session = source::legacy_session(&meta.thread.0);
                 self.sources.entry(meta.first.id()).or_default().session = Some(session);
                 self.fold(id, source);
+                let _inserted = self.source_summaries.insert(id);
             }
             ProviderFact::CodexLifecycle(_) => {
                 // These older contracts contain standalone observations. Keep
@@ -263,6 +265,9 @@ impl Converter {
             return Ok(vec![op.clone()]);
         }
         if self.removed.contains(&op.id) {
+            if self.source_summaries.contains(&op.id) {
+                return self.source_summary(op);
+            }
             return Ok(Vec::new());
         }
         let Some(mut record) = Operation::upgrade(op) else {
@@ -372,6 +377,26 @@ impl Converter {
                 target
             }
         })
+    }
+
+    fn source_summary(&self, op: &Op) -> Result<Vec<Op>, ImportError> {
+        let Some(mut record) = Operation::upgrade(op) else {
+            return Ok(Vec::new());
+        };
+        record.map_operation_ids(|id| self.output_id(id));
+        // Adding a record in a new namespace leaves every earlier conversion
+        // byte-identical, including the Original's existing folded mappings.
+        record.id = OpId::from_bytes(blake3::derive_key(
+            if self.migration {
+                "editchain.provider-source-summary.migration.v1"
+            } else {
+                "editchain.provider-source-summary.v1"
+            },
+            op.id.as_bytes(),
+        ));
+        Ok(vec![record
+            .into_op()
+            .map_err(|error| ImportError::OpSink(error.to_string()))?])
     }
 }
 

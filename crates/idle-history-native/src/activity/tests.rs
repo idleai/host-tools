@@ -625,6 +625,7 @@ fn framed_activity_reads_reuse_bound_history_sources() {
             repository: binding(),
             chain_directory: root.path().to_path_buf(),
             retained_directory: None,
+            repository_directory: None,
         },
     )
     .unwrap();

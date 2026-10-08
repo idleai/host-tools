@@ -327,3 +327,92 @@ fn claude_reasoning_and_parallel_tool_outcomes_keep_the_recorded_meaning() -> Re
     }
     Ok(())
 }
+
+#[test]
+fn source_prefix_contract_survives_capture_migration_and_retry() -> Result {
+    use idle_history::provider::{
+        CodexSourceEvidence, CodexThreadId, ProviderEvidenceSchema, ProviderFact,
+    };
+    let source = editchain_core::SourceId::new(editchain_core::NodeId(7), 2, 65_536);
+    let bytes = b"{\"type\":\"session_meta\",\"payload\":{\"id\":\"thread-a\"}}\n".to_vec();
+    let raw_hash = *blake3::hash(&bytes).as_bytes();
+    let mut raw = legacy(
+        1,
+        OpKind::Import(ImportOp {
+            raw_ref: Payload::Inline(bytes),
+            raw_hash: Some(raw_hash),
+        }),
+    );
+    raw.id = source.id();
+    raw.source = Some(source);
+    let contract = ProviderEvidence {
+        schema: ProviderEvidenceSchema::V1,
+        source,
+        raw_hash,
+        fact: ProviderFact::CodexSource(Box::new(CodexSourceEvidence {
+            thread: CodexThreadId("thread-a".into()),
+            parent: Some(CodexThreadId("parent-thread".into())),
+            forked_from: Some(CodexThreadId("fork-thread".into())),
+            agent_path: Some("root/review".into()),
+            first: source,
+            last: source,
+            prefix_hash: [9; 32],
+        })),
+    };
+    let payload = serde_json::to_vec(&contract)?;
+    let mut metadata = legacy(
+        2,
+        OpKind::Note(NoteOp {
+            target_ids: Vec::new(),
+            relationship: NoteRelationship::ProviderEvidence,
+            content: Payload::Inline(payload.clone()),
+        }),
+    );
+    metadata.parents = ParentSet::One(raw.id);
+    let variants = converted(&[raw.clone(), metadata.clone()])?;
+    verify_eq!(
+        variants.get(1),
+        variants.get(2),
+        "batch and direct capture retain byte-identical operations"
+    );
+    for records in variants {
+        let summary = activity(&records, metadata.id)?;
+        let Kind::Link(link) = &summary.kind else {
+            return Err("source summary must remain a typed metadata link".into());
+        };
+        verify_eq!(
+            &link.content,
+            &Payload::Inline(payload.clone()),
+            "all generation, extent, parent, fork, and path fields survive"
+        );
+        verify_eq!(
+            link.from,
+            Entity::Operation(activity(&records, raw.id)?.id),
+            "the source summary names its converted exact raw occurrence"
+        );
+        verify_ne!(
+            summary.id,
+            editchain_core::activity::upgrade_id(metadata.id),
+            "new summary records use a separate immutable namespace"
+        );
+        let retried =
+            idle_history_import::activity::convert(&records, &mut MemoryBlobSink::default())?;
+        verify_eq!(
+            records,
+            retried,
+            "retrying converted records cannot change IDs or encoded fields"
+        );
+        let mut kinds: Vec<_> = records
+            .iter()
+            .filter_map(Operation::view)
+            .map(|record| format!("{:?}", record.kind.name()))
+            .collect();
+        kinds.sort();
+        verify_eq!(
+            kinds,
+            vec!["Link", "Original", "Session"],
+            "the source summary supplements the existing Original and session snapshot"
+        );
+    }
+    Ok(())
+}

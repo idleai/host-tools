@@ -4,7 +4,7 @@
     "engine": {
       "repository": "idleai/editchain",
       "package": "editchain",
-      "version": "^0.1.0"
+      "version": "^0.1.6"
     },
     "codex-exporter": {
       "repository": "idleai/codex-evo",

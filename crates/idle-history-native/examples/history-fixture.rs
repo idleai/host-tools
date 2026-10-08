@@ -1,6 +1,8 @@
 //! Generate synthetic engine records for the packaged native-preview smoke check.
 
-use idle_host_io as _;
+use editchain_git as _;
+use sha2 as _;
+use {blake3 as _, editchain_index as _, idle_history_graph as _, idle_host_io as _};
 
 use std::{io, path::PathBuf};
 use {editchain_core as _, idle_repository as _};

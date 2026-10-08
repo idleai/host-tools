@@ -28,7 +28,26 @@ pub(super) fn prepare(
                 "The requested digest does not match a retained record. Select an exact representation.",
             )
         })?;
-    let documents = if request.target == Target::Record {
+    let documents = if request.target == Target::OperationJson {
+        let decoded = editchain_engine::decode_op(&record.encoded).map_err(|_error| {
+            Failure::new(
+                FailureCode::Unavailable,
+                "The selected record could not be decoded.",
+            )
+        })?;
+        vec![Document {
+            name: format!("{operation}.json"),
+            record: request.record.clone(),
+            field: None,
+            reference: None,
+            bytes: serde_json::to_vec_pretty(&decoded).map_err(|_error| {
+                Failure::new(
+                    FailureCode::Unavailable,
+                    "The selected operation could not be formatted.",
+                )
+            })?,
+        }]
+    } else if request.target == Target::Record {
         vec![Document {
             name: format!("{operation}.ec-record"),
             record: request.record.clone(),
@@ -100,7 +119,7 @@ fn content_documents(
 ) -> Result<Vec<Document>, Failure> {
     let operation = entry.operation.id;
     match target {
-        Target::Record => Err(Failure::new(
+        Target::Record | Target::OperationJson => Err(Failure::new(
             FailureCode::Unavailable,
             "Expected a content action.",
         )),

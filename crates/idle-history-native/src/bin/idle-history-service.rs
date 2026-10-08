@@ -1,13 +1,16 @@
 //! Exact native history documents over the extension host's framed transport.
 
+use editchain_git as _;
 use idle_host_io as _;
+use sha2 as _;
 
 use std::io;
 
 use idle_history_native::history::service;
 use {
-    editchain_core as _, editchain_engine as _, idle_editor_capture as _, idle_history as _,
-    idle_protocol as _, serde as _,
+    blake3 as _, editchain_core as _, editchain_engine as _, editchain_index as _,
+    idle_editor_capture as _, idle_history as _, idle_history_graph as _, idle_protocol as _,
+    serde as _,
 };
 
 #[cfg(test)]

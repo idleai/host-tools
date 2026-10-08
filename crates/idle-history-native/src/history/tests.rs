@@ -144,6 +144,24 @@ fn complete_file_diff_and_record_preserve_every_byte() {
         expected_record,
         "raw view uses the retained encoding"
     );
+    selected.target = Target::OperationJson;
+    let json = run(&mut queries, &selected).unwrap();
+    let document = json.documents.first().expect("operation JSON document");
+    assert!(
+        std::path::Path::new(&document.name)
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("json")),
+        "native JSON uses the JSON editor"
+    );
+    assert_eq!(
+        serde_json::from_slice::<Op>(&document.bytes).unwrap(),
+        operation,
+        "JSON decodes the exact selected operation"
+    );
+    assert_eq!(
+        document.record, selected.record,
+        "the selected digest survives formatting"
+    );
 }
 
 #[test]
@@ -556,6 +574,7 @@ fn framed_service_checks_bound_sources_and_returns_exact_codec_bytes() {
         serde_json::to_value(&selected).unwrap(),
         serde_json::json!({ "invalid": true }),
         serde_json::to_value(&unavailable).unwrap(),
+        serde_json::json!({ "capabilities": true }),
     ] {
         let frame = serde_json::to_vec(&serde_json::json!({ "id": 1, "body": body })).unwrap();
         input.extend_from_slice(&u32::try_from(frame.len()).unwrap().to_le_bytes());
@@ -569,6 +588,7 @@ fn framed_service_checks_bound_sources_and_returns_exact_codec_bytes() {
             repository: binding(),
             chain_directory: directory.path().to_path_buf(),
             retained_directory: None,
+            repository_directory: None,
         },
     )
     .unwrap();
@@ -609,6 +629,17 @@ fn framed_service_checks_bound_sources_and_returns_exact_codec_bytes() {
         response.pointer("/body/Err/code"),
         Some(&serde_json::json!("unavailable")),
         "retained source must be installed independently"
+    );
+    output.read_exact(&mut header).unwrap();
+    let mut frame = vec![0; usize::try_from(u32::from_le_bytes(header)).unwrap()];
+    output.read_exact(&mut frame).unwrap();
+    let response: serde_json::Value = serde_json::from_slice(&frame).unwrap();
+    assert_eq!(
+        response.pointer("/body/Ok"),
+        Some(&serde_json::json!({
+            "timeline": idle_history::timeline::VERSION, "operation_json": true
+        })),
+        "capability negotiation uses the native service contract"
     );
 }
 
@@ -690,6 +721,7 @@ fn native_projection_reads_real_activity_and_rejects_other_bindings() {
         repository: binding(),
         chain_directory: directory.path().to_path_buf(),
         retained_directory: None,
+        repository_directory: None,
     };
     let mut wrong = binding();
     wrong.repository_id = "another-repository".into();
@@ -727,5 +759,53 @@ fn native_projection_reads_real_activity_and_rejects_other_bindings() {
         } else {
             assert!(result.unwrap_err().message.contains("different repository"));
         }
+    }
+}
+
+#[test]
+fn timeline_lock_contention_uses_the_retryable_query_reply_and_releases_handles() {
+    use editchain_index::Storage;
+
+    let directory = tempfile::tempdir().unwrap();
+    let engine = Engine::open(directory.path()).unwrap();
+    let _stored = engine
+        .append(&original(1, Payload::Inline(b"record".to_vec())).unwrap())
+        .unwrap();
+    let service = service::Service::new(service::Binding {
+        repository: binding(),
+        chain_directory: directory.path().to_path_buf(),
+        retained_directory: None,
+        repository_directory: None,
+    })
+    .unwrap();
+    let query = serde_json::to_vec(&serde_json::json!({
+        "id": 1,
+        "body": {
+            "binding": binding(),
+            "query": {
+                "chain": "chain",
+                "action": { "Timeline": { "version": idle_history::timeline::VERSION, "action": { "Window": {
+                    "view": idle_history::timeline::View::default(),
+                    "position": "Latest", "limit": 200
+                } } } }
+            }
+        }
+    }))
+    .unwrap();
+    for checkpoint in ["activity-timeline-v1", "index-v3"] {
+        let owner = Storage::open(&directory.path().join(checkpoint)).unwrap();
+        let response: serde_json::Value =
+            serde_json::from_slice(&service.handle(&query).unwrap()).unwrap();
+        assert_eq!(
+            response.pointer("/body/Err/message"),
+            Some(&serde_json::json!(
+                "Unable to read the bound history source."
+            )),
+            "the host can retry temporary contention for {checkpoint}"
+        );
+        drop(owner);
+        let response: serde_json::Value =
+            serde_json::from_slice(&service.handle(&query).unwrap()).unwrap();
+        assert!(response.pointer("/body/Ok/Timeline").is_some());
     }
 }

@@ -20,3 +20,5 @@ pub mod human;
 pub mod provider;
 /// Application classifications used by history presentation.
 pub mod taxonomy;
+/// Versioned, bounded Activity timeline queries and native addresses.
+pub mod timeline;

@@ -2,16 +2,7 @@ use editchain_engine::queries::{ContentField, ContentReference};
 use idle_history::{binding::RepositoryChainBinding, query::RecordRef};
 use serde::{Deserialize, Serialize};
 
-/// Physical record namespace selected explicitly by the caller.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Source {
-    /// Current chain, including its recorded migration aliases.
-    #[default]
-    Current,
-    /// Separately bound retained input chain or migration archive.
-    Retained,
-}
+pub use idle_history::timeline::Source;
 
 /// Complete history intent; paths to storage never come from a webview.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -31,6 +22,8 @@ pub struct Request {
 /// Actions corresponding to app-core's native history targets, plus field reads.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Target {
+    /// Decoded selected operation formatted as a read-only JSON document.
+    OperationJson,
     /// Exact encoded record, including a specifically selected conflict variant.
     Record,
     /// Exact Original payload, following only the recorded Original reference.
