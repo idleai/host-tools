@@ -125,6 +125,22 @@ pub enum QueryAction {
     },
     /// Atomically replace loaded windows after reconnect or a source change.
     Reconcile(Box<Reconcile>),
+    /// Read a versioned, indexed Activity window or advance its construction.
+    Timeline(Box<crate::timeline::Request>),
+    /// Open an exact occurrence in its declared physical source.
+    OpenAt {
+        /// Source and digest are retained through timeline paging and selection.
+        address: crate::timeline::Target,
+        /// Native action to perform.
+        target: OpenTarget,
+    },
+    /// Read an immutable commit summary and patch from the host-bound repository.
+    Commit {
+        /// Exact repository identity, as decimal text.
+        repository: String,
+        /// Complete commit hash.
+        oid: String,
+    },
 }
 
 /// Native content action. Hosts report unavailable capabilities as errors.
@@ -139,6 +155,8 @@ pub enum OpenTarget {
     File,
     /// Recorded before/after comparison.
     Diff,
+    /// Formatted decoded operation in a read-only JSON document.
+    OperationJson,
 }
 
 /// Full observation identity plus digest of one exact retained representation.
@@ -344,6 +362,17 @@ pub enum QueryResult {
     Opened,
     /// Replacement loaded windows from one refreshed engine index.
     Reconciled(Box<Reconciled>),
+    /// Indexed timeline response sharing one coherent snapshot.
+    Timeline(Box<crate::timeline::Response>),
+    /// Read-only commit document from the bound repository.
+    Commit {
+        /// Exact repository identity.
+        repository: String,
+        /// Full commit hash.
+        oid: String,
+        /// Commit description and textual patch.
+        content: String,
+    },
 }
 
 /// A logical item's loaded candidate window, rescanned from the beginning.

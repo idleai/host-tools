@@ -31,7 +31,10 @@ pub fn execute(queries: &mut ChainQueries, chain: &str, query: &Query) -> QueryO
             "History query belongs to a different chain",
         ));
     }
-    if matches!(query.action, QueryAction::Open { .. }) {
+    if matches!(
+        query.action,
+        QueryAction::Open { .. } | QueryAction::OpenAt { .. }
+    ) {
         return Err(idle_history::query::Error::new(
             "Native history actions require a platform adapter",
         ));
@@ -80,12 +83,16 @@ fn execute_read(queries: &ChainQueries, action: &QueryAction) -> io::Result<Quer
         QueryAction::OperationDetails { operation } => {
             operation_details(queries, id(operation)?).map(QueryResult::OperationDetails)
         }
-        QueryAction::Open { .. } => Err(io::Error::new(
+        QueryAction::Open { .. } | QueryAction::OpenAt { .. } => Err(io::Error::new(
             io::ErrorKind::Unsupported,
             "Native action requires a platform adapter",
         )),
         QueryAction::Reconcile(request) => reconciliation::capture(queries, request)
             .map(|snapshot| QueryResult::Reconciled(Box::new(snapshot))),
+        QueryAction::Timeline(_) | QueryAction::Commit { .. } => Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "This query requires a bound native history service",
+        )),
     }
 }
 

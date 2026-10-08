@@ -24,6 +24,9 @@ pub struct Binding {
     pub chain_directory: PathBuf,
     /// Explicit retained source, including its own blobs if content is needed.
     pub retained_directory: Option<PathBuf>,
+    /// Explicit checkout root for live Git reads; absent for chain-only hosts.
+    #[serde(default)]
+    pub repository_directory: Option<PathBuf>,
 }
 
 #[derive(Deserialize)]
@@ -44,10 +47,17 @@ struct Response {
 #[derive(Serialize)]
 #[serde(untagged)]
 enum ResponseBody {
+    Capabilities(Result<Capabilities, Failure>),
     Query(Box<idle_history::query::QueryOutput>),
     Projection(Box<idle_history::projections::ProjectionOutput>),
     Native(Box<Result<Preview, Failure>>),
     Activity(Box<Result<crate::activity::Preview, Failure>>),
+}
+
+#[derive(Serialize)]
+struct Capabilities {
+    timeline: u32,
+    operation_json: bool,
 }
 
 #[derive(Deserialize)]
@@ -73,7 +83,12 @@ struct ProjectionRequest {
 }
 
 fn execute_body(binding: &Binding, body: serde_json::Value) -> ResponseBody {
-    if body.get("projection").is_some() {
+    if body == serde_json::json!({ "capabilities": true }) {
+        ResponseBody::Capabilities(Ok(Capabilities {
+            timeline: idle_history::timeline::VERSION,
+            operation_json: true,
+        }))
+    } else if body.get("projection").is_some() {
         let result = serde_json::from_value::<ProjectionRequest>(body)
             .map_err(|_error| idle_history::query::Error {
                 message: "Invalid projection query.".to_owned(),
@@ -118,6 +133,22 @@ fn read_query(binding: &Binding, request: &QueryRequest) -> idle_history::query:
     }
     if !binding.chain_directory.is_dir() {
         return Err(failure("The bound history source is unavailable."));
+    }
+    if let idle_history::query::QueryAction::Commit { repository, oid } = &request.query.action {
+        return crate::git::document(binding, repository, oid)
+            .map_err(idle_history::query::Error::new);
+    }
+    if let idle_history::query::QueryAction::Timeline(request) = &request.query.action {
+        return crate::timeline::execute(binding, request)
+            .map(|result| idle_history::query::QueryResult::Timeline(Box::new(result)))
+            .map_err(|error| {
+                if error.kind() == io::ErrorKind::WouldBlock {
+                    // Keep the released adapter's bounded storage retry behavior.
+                    failure("Unable to read the bound history source.")
+                } else {
+                    idle_history::query::Error::new(error)
+                }
+            });
     }
     let mut queries = ChainQueries::open(&binding.chain_directory)
         .map_err(|_error| failure("Unable to read the bound history source."))?;
@@ -206,6 +237,10 @@ impl Service {
     pub fn new(binding: Binding) -> io::Result<Self> {
         validate_binding(&binding.repository).map_err(io::Error::other)?;
         if !binding.chain_directory.is_absolute()
+            || binding
+                .repository_directory
+                .as_ref()
+                .is_some_and(|path| !path.is_absolute())
             || binding
                 .retained_directory
                 .as_ref()

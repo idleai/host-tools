@@ -99,3 +99,64 @@ The backend currently has no production API routes for this client to call.
 This restructuring establishes the owner and dependencies; it does not add
 placeholder endpoints or report managed capabilities as available. Existing
 f47 session-directory work and other managed backend features remain pending.
+
+## Indexed Activity timeline
+
+`idle-history::timeline` defines version 2 of the native Activity window contract.
+`QueryAction::Timeline` supports latest windows, exact occurrence seeking,
+bidirectional paging, group members, indexed literal Find, refresh, resumable
+build advancement and cancellation. Cursors name both a complete snapshot
+revision and the filter/disclosure view. Expired cursors return `Stale`.
+
+`idle-history-native::timeline` persists rebuildable pages under
+`activity-timeline-v1`. Accepted engine revisions and the incremental change log
+cover additions, conflict retractions and newly available content. A staged
+snapshot updates affected records and relationships before publishing its root
+atomically. Source index handles are released after every request. Native windows
+include coalesced lane coverage and bends, including relationships whose two
+endpoints are outside the returned window.
+
+Projection preserves occurrence identity separately from logical-item identity.
+Explicit ownership and old-address mappings combine raw inputs with normalized
+outputs. Source metadata retains generation, extent, activation and lifecycle
+fields. Exact raw hashes and complete recorded sequence extents are checked;
+prefix digests are retained and compared for contradictions, without claiming a
+second full-prefix digest computation. Missing or ambiguous relationships stay
+unresolved. Retained archives must be explicitly bound. A changed archive
+invalidates its derived snapshot while the last complete window stays readable.
+
+Legacy imports keep their physical addresses while reconstructing verified
+logical revisions. Supporting observation markers and importer metadata do not
+become extra activities. First-incarnation clocks retain causal placement;
+selected revisions supply displayed dates and native open targets. Task captions
+come from the first eligible recorded prompt, with status accepted only from the
+importer's verified turn slot.
+
+Recorded turns and attempts define task boundaries. Only safe connected paths
+are folded, with at most 128 members per group to bound incremental repair.
+Forks, joins, Git attachments, file activities and protected outcomes remain
+individually readable. A group retains all exact constituent addresses plus its
+entry, exit and representative operation. Git identities include the repository,
+so the same object hash in another repository cannot supply an attachment.
+
+The default window size is 200 and the maximum is 500. Native ranks support
+window and seek reads without replaying history. Filter views and Find results
+are cached natively; a new literal search verifies candidates from its most
+selective text posting list. Window replies carry compact summaries. App-core
+retains at most 2,000 summaries and 32 MiB across the full editor and sidebar;
+complete content remains a separate native request.
+
+`OpenAt` distinguishes an exact current/retained record from a repository-qualified
+Git commit. Live Git history comes from the trusted installed repository binding
+without appending engine records; commit opens recheck that binding and full OID.
+`OperationJson` decodes that selected stored representation and formats it as a
+read-only `.json` document. The encoded-record action remains unchanged. The
+history service answers `{ "capabilities": true }` with timeline version 2 and
+`operation_json: true` before consumers activate the new timeline.
+
+Structural tests live in `idle-history-native/src/timeline/tests`. The
+`activity-fixture` example exports real native windows for web-ui's editor and
+mini fixtures. The `activity-benchmark` example builds and queries synthetic
+10,000-, 100,000- and 1,000,000-operation recordings with up to 100 branches.
+Measure cold construction separately from warm windows, seeks and appends; retain
+runner CPU/memory limits and peak process memory alongside the result JSON.
