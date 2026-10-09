@@ -39,10 +39,11 @@ length prefix. The frame begins with this eight-byte routing header:
 | `6` Shutdown | Application → native | Empty payload on channel zero; retire the host |
 
 Hello advertises `version: 1` and version `1` for `capture`, `history`,
-`collection`, `repository` and `coordination`. Clients validate these before
+`collection`, `repository`, `coordination` and `runtime`. Clients validate the required services before
 opening channels. The optional `features` array includes `repository.local`,
 which permits repository reads with `local_only: true`. Clients must check this
 feature before sending that field to an older host. Missing features are unsupported.
+The `runtime.workspace` feature enables the optional runtime channel described below.
 Channel IDs are positive and increase for the process lifetime;
 closed IDs cannot be reused. Open contains:
 
@@ -102,3 +103,32 @@ are requested only when needed, and are never put into command arguments or
 host diagnostics. A host crash affects all its channels. The extension rejects
 pending requests, waits for the old OS process to exit, then reopens requested
 channels using fresh identifiers and their existing durable state.
+
+## Codex compute connections
+
+The optional `runtime` service takes a private `idle-runtime:` invitation and
+the expected `workspace_id`, `repository_id`, `chain_id` and `client_id`. It
+checks those identities before opening a Dev Tunnels connection on runtime
+port 43189. History sharing continues using its existing port. Runtime calls
+use the coordination call/cancel envelope with `command: {"kind":"status"}`.
+Successful replies contain the daemon's status for the approved binding.
+
+The service authenticates the daemon-issued grant, initializes the native
+Codex app-server protocol, selects the approved attachment and reads status.
+It verifies the host identity and exact workspace binding on replies.
+Invitations stay in the application host's secret storage. The runtime service
+cannot obtain management credentials or use an invitation for another local
+workspace. Cancellation retires an in-flight exchange before reconnecting.
+
+On the compute machine, Codex owns a separate `idle-host --runtime-relay`
+process. That mode uses one-MiB bounded, big-endian JSON frames on private
+stdin/stdout pipes. A local `start` command supplies the private state directory
+and the absolute path to an owner-selected GitHub CLI. The helper hosts and
+renews its Dev Tunnel, forwards opaque frames, and journals its owned tunnel
+for restart and cleanup. Codex authenticates each incoming runtime grant and
+applies the workspace and method restrictions.
+
+EOF suspends hosting without deleting the tunnel; `stop` with `remove: true`
+removes it. Closing an editor only closes its client channel. It does not stop
+the daemon or its helper. See the companion Codex CLI's `app-server idle`
+commands for setup, invitations and revocation.

@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-use super::{CLOSE_TIMEOUT, DevTunnels, REQUEST_TIMEOUT, locator, owned, port, safe_http, token};
+use super::{CLOSE_TIMEOUT, DevTunnels, REQUEST_TIMEOUT, locator, owned, safe_http, token};
 
 struct SdkHost {
     owner: DevTunnels,
@@ -120,7 +120,7 @@ impl DevTunnels {
         }
         let mut host = RelayTunnelHost::new(locator(&lease), self.management(cancel));
         let incoming = bounded(cancel, REQUEST_TIMEOUT, async {
-            host.add_port_raw(&port())
+            host.add_port_raw(&self.port())
                 .await
                 .map_err(|_error| Error::Transport)
         })

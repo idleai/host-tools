@@ -23,6 +23,7 @@ pub(crate) enum Binding {
     Collection(idle_history_collector::Binding),
     Repository(idle_repository::Binding),
     Coordination(Box<idle_coordination::service::native::Configuration>),
+    Runtime(idle_coordination::runtime::Binding),
 }
 
 impl Open {
@@ -40,6 +41,7 @@ impl Open {
                     && binding.chain_directory.is_absolute()
                     && binding.device_directory.is_absolute()
             }
+            Binding::Runtime(_) => true,
         };
         if !valid {
             return Err(io::Error::other(
@@ -55,7 +57,7 @@ impl Binding {
         match self {
             Self::Capture(_) => 160 * 1024 * 1024,
             Self::History(_) => 8 * 1024 * 1024,
-            Self::Collection(_) => 1024 * 1024,
+            Self::Collection(_) | Self::Runtime(_) => 1024 * 1024,
             Self::Repository(_) => 16 * 1024,
             Self::Coordination(_) => 16 * 1024 * 1024,
         }

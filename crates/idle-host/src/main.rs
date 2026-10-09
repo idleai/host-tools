@@ -10,9 +10,11 @@ use {
 };
 
 fn main() -> io::Result<()> {
-    if std::env::args_os().len() != 1 {
+    let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    let relay = arguments.as_slice() == ["--runtime-relay"];
+    if !arguments.is_empty() && !relay {
         return Err(io::Error::other(
-            "native host takes no configuration arguments",
+            "native host accepts only the --runtime-relay mode switch",
         ));
     }
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -26,7 +28,16 @@ fn main() -> io::Result<()> {
             shutdown_signal().await;
             interrupted.cancel();
         });
-        let result = idle_host::serve(tokio::io::stdin(), tokio::io::stdout(), &cancel).await;
+        let result = if relay {
+            idle_coordination::runtime::serve_relay(
+                tokio::io::stdin(),
+                tokio::io::stdout(),
+                &cancel,
+            )
+            .await
+        } else {
+            idle_host::serve(tokio::io::stdin(), tokio::io::stdout(), &cancel).await
+        };
         signals.abort();
         result
     });

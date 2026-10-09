@@ -58,6 +58,9 @@ fn close_result<E: std::error::Error + 'static>(result: std::result::Result<(), 
 /// Exact upstream revision exercised by the SDK and integration checks.
 pub const SDK_REVISION: &str = "bb2a7dbdc56312b01b86be6eb8ce9cda7bb932a2";
 
+/// Dedicated runtime port. History grants never select this port.
+pub const RUNTIME_PORT: u16 = 43189;
+
 /// Microsoft's native SDK behind injected owner credentials and private persistence.
 #[derive(Clone, Debug)]
 pub struct DevTunnels {
@@ -65,6 +68,7 @@ pub struct DevTunnels {
     clock: Arc<dyn Clock>,
     journal: Arc<Journal>,
     http: reqwest::Client,
+    port: u16,
 }
 
 impl DevTunnels {
@@ -89,7 +93,45 @@ impl DevTunnels {
             clock,
             journal: Arc::new(Journal::new(storage)),
             http,
+            port: MULTIPLAYER_PORT,
         })
+    }
+
+    /// Construct a separate runtime relay with its own private resource journal.
+    ///
+    /// # Errors
+    /// Returns native HTTP/TLS initialization failures.
+    pub fn runtime(
+        credentials: Arc<dyn Credentials>,
+        storage: Arc<dyn Persistence>,
+        clock: Arc<dyn Clock>,
+    ) -> Result<Self> {
+        let mut adapter = Self::new(credentials, storage, clock)?;
+        adapter.port = RUNTIME_PORT;
+        Ok(adapter)
+    }
+
+    /// Connect to the runtime port using only the supplied relay grant.
+    /// The daemon separately authenticates and restricts the runtime session.
+    ///
+    /// # Errors
+    /// Rejects expired grants, changed tunnel identities and unavailable routes.
+    pub async fn connect_runtime(
+        &self,
+        descriptor: &crate::transport::RelayDescriptor,
+        cancel: &CancellationToken,
+    ) -> Result<Box<dyn crate::transport::ClientTransport>> {
+        if self.port != RUNTIME_PORT || descriptor.expires_at <= self.clock.now_ms()? {
+            return Err(Error::Expired);
+        }
+        let endpoint = client::resolve_endpoint(
+            self,
+            &descriptor.endpoint,
+            &descriptor.connect_token,
+            cancel,
+        )
+        .await?;
+        client::connect_endpoint(self, &endpoint, &descriptor.connect_token, cancel).await
     }
 
     fn management(&self, cancel: &CancellationToken) -> TunnelManagementClient {
@@ -153,7 +195,7 @@ impl DevTunnels {
                     Tunnel {
                         labels: vec!["idle-relay".into(), marker.clone()],
                         custom_expiration: Some(86_400),
-                        ports: vec![port()],
+                        ports: vec![self.port()],
                         ..Default::default()
                     },
                     &options,
@@ -329,11 +371,13 @@ impl Credentials for EnvironmentCredentials {
     }
 }
 
-fn port() -> TunnelPort {
-    TunnelPort {
-        port_number: MULTIPLAYER_PORT,
-        protocol: Some("auto".into()),
-        ..Default::default()
+impl DevTunnels {
+    fn port(&self) -> TunnelPort {
+        TunnelPort {
+            port_number: self.port,
+            protocol: Some("auto".into()),
+            ..Default::default()
+        }
     }
 }
 
