@@ -160,6 +160,10 @@ and receipt atomically. Repeating a commit returns the original receipt without
 overwriting later writes. Source state uses format version 2 so older helpers
 reject it instead of resuming local ownership.
 
+Ordinary coordination request JSON is limited to 256 KiB by the daemon; native
+results are limited to 500 KiB, returning `busy` when larger. These call limits
+are independent of the chunked transfer package limit.
+
 After transfer, the editor routes coordination calls to the daemon. The original
 contributor is bound to the owner invitation's client ID; another client cannot
 claim the imported coordinator. The gateway supports workspace configuration,
