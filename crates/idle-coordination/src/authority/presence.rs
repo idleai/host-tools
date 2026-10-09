@@ -22,6 +22,7 @@ impl Authority {
             .member(actor)
             .map_err(|_error| Error::Forbidden)?;
         if self.state.handoff.is_some()
+            || self.state.runtime_transfer.is_some()
             || entry.contributor_id != *actor
             || Some(&entry.repository_id) != repository_id(&self.state.workspace.value)
             || entry.connection_id.is_empty()

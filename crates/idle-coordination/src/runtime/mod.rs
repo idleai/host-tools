@@ -4,12 +4,14 @@
 //! messages and owns relay cleanup; it never runs models or accepts shell commands.
 
 mod client;
+pub mod coordination;
 mod credentials;
 mod framing;
 mod host;
 mod invitation;
 
 pub use client::{Binding, serve_client};
+pub use coordination::serve_authority;
 pub use host::serve_relay;
 pub use invitation::RuntimeInvitation;
 
