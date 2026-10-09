@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1](https://github.com/idleai/host-tools/compare/idle-host-v0.3.0...idle-host-v0.3.1) - 2026-10-09
+
+### Added
+
+- connect native clients to Codex workspace relays ([#22](https://github.com/idleai/host-tools/pull/22))
+
 ## [0.3.0](https://github.com/idleai/host-tools/compare/idle-host-v0.2.0...idle-host-v0.3.0) - 2026-10-08
 
 ### Other

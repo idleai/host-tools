@@ -2200,7 +2200,7 @@ dependencies = [
 
 [[package]]
 name = "idle-coordination"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-trait",
  "base64",
@@ -2226,7 +2226,7 @@ dependencies = [
 
 [[package]]
 name = "idle-editor-capture"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "blake3",
  "editchain-core",
@@ -2241,7 +2241,7 @@ dependencies = [
 
 [[package]]
 name = "idle-history"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "editchain-core",
  "facet",
@@ -2252,7 +2252,7 @@ dependencies = [
 
 [[package]]
 name = "idle-history-collector"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "blake3",
  "ctrlc",
@@ -2269,7 +2269,7 @@ dependencies = [
 
 [[package]]
 name = "idle-history-graph"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "editchain-core",
  "editchain-index",
@@ -2280,7 +2280,7 @@ dependencies = [
 
 [[package]]
 name = "idle-history-import"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "blake3",
  "editchain-core",
@@ -2300,7 +2300,7 @@ dependencies = [
 
 [[package]]
 name = "idle-history-native"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "blake3",
  "editchain-core",
@@ -2322,7 +2322,7 @@ dependencies = [
 
 [[package]]
 name = "idle-history-tools"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "clap",
  "ctrlc",
@@ -2339,7 +2339,7 @@ dependencies = [
 
 [[package]]
 name = "idle-host"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "idle-coordination",
  "idle-editor-capture",
@@ -2356,14 +2356,14 @@ dependencies = [
 
 [[package]]
 name = "idle-host-io"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "tokio",
 ]
 
 [[package]]
 name = "idle-protocol"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "facet",
  "schemars",
@@ -2373,7 +2373,7 @@ dependencies = [
 
 [[package]]
 name = "idle-repository"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "blake3",
  "editchain-core",
@@ -3812,7 +3812,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
