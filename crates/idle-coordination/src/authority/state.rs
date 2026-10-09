@@ -54,6 +54,10 @@ pub(super) struct State {
     pub repository_files: Option<Box<crate::workspace_config::Observation>>,
     #[serde(default)]
     pub resource_revisions: super::resources::ResourceRevisions,
+    #[serde(default)]
+    pub runtime_transfer: Option<Box<super::runtime_transfer::Transfer>>,
+    #[serde(default)]
+    pub runtime_owner: Option<Box<super::runtime_transfer::Owner>>,
 }
 
 impl State {
@@ -97,11 +101,17 @@ impl State {
             handoff: None,
             repository_files: None,
             resource_revisions: super::resources::ResourceRevisions::default(),
+            runtime_transfer: None,
+            runtime_owner: None,
         })
     }
 
     pub(super) fn validate(&self) -> Result<()> {
-        if self.version != 1 {
+        if !matches!(self.version, 1 | 2)
+            || (self.version == 1
+                && (self.runtime_transfer.is_some() || self.runtime_owner.is_some()))
+            || (self.runtime_transfer.is_some() && self.runtime_owner.is_some())
+        {
             return Err(Error::Version);
         }
         self.validate_binding()?;

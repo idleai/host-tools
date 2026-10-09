@@ -8,7 +8,7 @@ use crate::{Error, Result, invitation::Secret, transport::RelayDescriptor};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RuntimeInvitation {
-    /// Runtime invitation version, currently one.
+    /// Version one permits attachment; version two can grant coordination ownership.
     pub version: u32,
     /// Expected persistent Codex installation identity.
     pub host_id: String,
@@ -30,6 +30,9 @@ pub struct RuntimeInvitation {
     pub relay: RelayDescriptor,
     /// Runtime grant expiry in Unix milliseconds.
     pub expires_at: u64,
+    /// Version two can explicitly allow standalone coordination ownership.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub coordination_owner: bool,
 }
 
 impl RuntimeInvitation {
@@ -63,7 +66,10 @@ impl RuntimeInvitation {
     }
 
     fn validate(&self, now: u64) -> Result<()> {
-        if self.version != 1 {
+        if !matches!(
+            (self.version, self.coordination_owner),
+            (1, false) | (2, true)
+        ) {
             return Err(Error::Version);
         }
         if self.expires_at <= now || self.relay.expires_at <= now {

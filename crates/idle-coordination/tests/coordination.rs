@@ -31,6 +31,12 @@ mod native;
 #[cfg(test)]
 #[path = "cases/peers.rs"]
 mod peers;
+#[cfg(test)]
+#[path = "cases/runtime_owner.rs"]
+mod runtime_owner;
+#[cfg(test)]
+#[path = "cases/runtime_transfer.rs"]
+mod runtime_transfer;
 
 #[cfg(test)]
 #[path = "cases/workspace_config.rs"]

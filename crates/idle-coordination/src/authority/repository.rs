@@ -61,7 +61,9 @@ impl Authority {
             )?;
         }
         authority.repository = Some(repository);
-        authority.refresh_repository()?;
+        if authority.state.runtime_transfer.is_none() {
+            authority.refresh_repository()?;
+        }
         Ok(authority)
     }
 
@@ -84,7 +86,7 @@ impl Authority {
         {
             return Ok(());
         }
-        if self.state.handoff.is_some() {
+        if self.state.handoff.is_some() || self.state.runtime_transfer.is_some() {
             return Err(Error::Conflict);
         }
         if self
@@ -228,7 +230,7 @@ impl Authority {
     }
 }
 
-fn recover(storage: &dyn Persistence, repository: &RepositoryFiles) -> Result<()> {
+pub(super) fn recover(storage: &dyn Persistence, repository: &RepositoryFiles) -> Result<()> {
     let Some(bytes) = storage.load(JOURNAL)? else {
         return Ok(());
     };

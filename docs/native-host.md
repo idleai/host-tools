@@ -44,6 +44,8 @@ opening channels. The optional `features` array includes `repository.local`,
 which permits repository reads with `local_only: true`. Clients must check this
 feature before sending that field to an older host. Missing features are unsupported.
 The `runtime.workspace` feature enables the optional runtime channel described below.
+The `coordination.runtime-owner` feature adds transfer from a local coordinator
+to a daemon-owned coordinator through that channel.
 Channel IDs are positive and increase for the process lifetime;
 closed IDs cannot be reused. Open contains:
 
@@ -111,7 +113,12 @@ the expected `workspace_id`, `repository_id`, `chain_id` and `client_id`. It
 checks those identities before opening a Dev Tunnels connection on runtime
 port 43189. History sharing continues using its existing port. Runtime calls
 use the coordination call/cancel envelope with `command: {"kind":"status"}`.
-Successful replies contain the daemon's status for the approved binding.
+Successful replies contain the daemon's status for the approved binding. A
+version 2 invitation with `coordinationOwner: true` also permits
+`command: {"kind":"coordination","request":{"kind":"status"}}`. The
+application passes raw command JSON, and the native adapter embeds the request
+as a JSON string in `idle/coordination/call`, preserving native integer values.
+Version 1 invitations continue to permit attachment and status only.
 
 The service authenticates the daemon-issued grant, initializes the native
 Codex app-server protocol, selects the approved attachment and reads status.
@@ -132,3 +139,37 @@ EOF suspends hosting without deleting the tunnel; `stop` with `remove: true`
 removes it. Closing an editor only closes its client channel. It does not stop
 the daemon or its helper. See the companion Codex CLI's `app-server idle`
 commands for setup, invitations and revocation.
+
+## Daemon-owned coordination
+
+Codex starts one `idle-host --runtime-authority` child per workspace. Its private
+stdin/stdout channel uses one-MiB bounded, big-endian JSON frames. The local
+daemon supplies the trusted workspace identity, checkout root, chain and private
+state directory. Remote requests cannot choose those paths. The helper holds an
+exclusive state lock until the daemon closes its pipe and restores accepted
+coordination state when it starts again.
+
+The original authenticated contributor can transfer a local coordinator using
+`prepare_runtime_transfer`, `runtime_transfer_chunk` and
+`complete_runtime_transfer`. Preparation requires matching tracked definitions,
+retires the active control lease and durably freezes local writes. The package
+retains the contributor identity, access grants, revisions, cursors and write
+results. Transfer packages are limited to 16 MiB and uploaded in chunks of at
+most 64 KiB. The destination validates the entire package and installs its state
+and receipt atomically. Repeating a commit returns the original receipt without
+overwriting later writes. Source state uses format version 2 so older helpers
+reject it instead of resuming local ownership.
+
+Ordinary coordination request JSON is limited to 256 KiB by the daemon; native
+results are limited to 500 KiB, returning `busy` when larger. These call limits
+are independent of the chunked transfer package limit.
+
+After transfer, the editor routes coordination calls to the daemon. The original
+contributor is bound to the owner invitation's client ID; another client cannot
+claim the imported coordinator. The gateway supports workspace configuration,
+metadata, access grants, control leases and peer activity. History sharing and
+managed coordinator adoption remain separate. Revocation and grant expiry are
+checked by Codex before every request, including queued requests. Disconnects
+do not unlock the daemon's coordinator or permit a local fallback. Requests are
+not automatically replayed after a helper failure; callers recover mutations
+using their existing request IDs.
