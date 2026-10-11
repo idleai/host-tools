@@ -3,6 +3,7 @@
 use std::{io, path::PathBuf, sync::Arc};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+use idle_protocol::v1::sessions::RuntimeBinding;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -24,7 +25,7 @@ use crate::{
 
 use super::framing;
 
-/// Operations admitted only after Codex validates a coordination-owner grant.
+/// Operations admitted after Codex validates the matching workspace capability.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
@@ -51,6 +52,20 @@ pub enum Request {
         /// Existing coordination command; history lifecycle calls are refused.
         command: Command,
     },
+    /// Publish a daemon-owned runner; admitted only on a version 2 runtime call.
+    RegisterRunner {
+        /// Native thread identity reserved durably before startup.
+        session_id: String,
+        /// Original parent when forking an existing bound runner.
+        parent: Option<String>,
+    },
+    /// Resolve current session/compute grants and authored rules before admission.
+    AuthorizeRunner {
+        /// Existing session bound to this runtime generation.
+        session_id: String,
+        /// Whether the frozen execution policy permits filesystem writes.
+        write: bool,
+    },
 }
 
 #[derive(Deserialize)]
@@ -59,6 +74,16 @@ struct Start {
     version: u32,
     state_directory: PathBuf,
     destination: RuntimeDestination,
+    #[serde(default)]
+    runtime_id: Option<String>,
+}
+
+#[derive(Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum Source {
+    #[default]
+    Client,
+    Daemon,
 }
 
 #[derive(Deserialize)]
@@ -66,6 +91,9 @@ struct Start {
 struct Call {
     client_id: String,
     request: Request,
+    // Set by the daemon's private dispatcher, outside the client request.
+    #[serde(default)]
+    source: Source,
 }
 
 struct Upload {
@@ -80,6 +108,7 @@ struct Host {
     destination: RuntimeDestination,
     authority: Option<Authority>,
     upload: Option<Upload>,
+    runtime: Option<RuntimeBinding>,
 }
 
 /// Hold one authority independently of clients, releasing its lock on daemon EOF.
@@ -96,11 +125,20 @@ pub async fn serve_authority(
         () = cancel.cancelled() => return Ok(()),
         start = framing::read(&mut input) => start?.ok_or_else(framing::invalid)?,
     };
-    if start.version != 1
+    if !matches!(start.version, 1 | 2)
+        || (start.version == 2) != start.runtime_id.is_some()
         || !start.state_directory.is_absolute()
         || !start.destination.checkout_root.is_absolute()
     {
         return Err(framing::invalid());
+    }
+    let runtime = start.runtime_id.map(|runtime_id| RuntimeBinding {
+        host_id: start.destination.target.host_id.as_str().into(),
+        runtime_id: runtime_id.as_str().into(),
+    });
+    if let Some(runtime) = &runtime {
+        crate::authority::validation::id(&runtime.runtime_id.0)
+            .map_err(|_error| framing::invalid())?;
     }
     let storage = Arc::new(FilePersistence::open(start.state_directory).map_err(safe_error)?);
     let authority = if storage.load("authority").map_err(safe_error)?.is_some() {
@@ -116,8 +154,14 @@ pub async fn serve_authority(
         destination: start.destination,
         authority,
         upload: None,
+        runtime,
     };
-    framing::write(&mut output, &json!({"ready":true})).await?;
+    let ready = if start.version == 2 {
+        json!({"ready":true,"runner_authorization":1})
+    } else {
+        json!({"ready":true})
+    };
+    framing::write(&mut output, &ready).await?;
     loop {
         let call: Option<Call> = tokio::select! {
             () = cancel.cancelled() => return Ok(()),
@@ -128,7 +172,7 @@ pub async fn serve_authority(
         };
         // File operations are serialized with the authority's lifetime, away from
         // the app-server's request and transport loops.
-        let result = host.call(&call.client_id, call.request);
+        let result = host.call(&call.client_id, call.source, call.request);
         let result = if serde_json::to_vec(&result)
             .map_err(|_error| framing::invalid())?
             .len()
@@ -143,13 +187,34 @@ pub async fn serve_authority(
 }
 
 impl Host {
-    fn call(&mut self, client_id: &str, request: Request) -> Result<Value> {
+    fn call(&mut self, client_id: &str, source: Source, request: Request) -> Result<Value> {
         if let Some(authority) = &self.authority
             && authority.runtime_owner()?.1.contributor_id.0 != client_id
+            && !(source == Source::Daemon && matches!(&request, Request::AuthorizeRunner { .. }))
         {
             return Err(Error::Forbidden);
         }
         match request {
+            Request::RegisterRunner { session_id, parent } => {
+                let principal = self.runtime_principal(source)?;
+                let authority = self.authority.as_mut().ok_or(Error::Conflict)?;
+                authority.register_runner(
+                    &principal,
+                    session_id.as_str().into(),
+                    parent.as_deref().map(Into::into),
+                )?;
+                Ok(Value::Null)
+            }
+            Request::AuthorizeRunner { session_id, write } => {
+                let principal = self.runtime_principal(source)?;
+                let authority = self.authority.as_mut().ok_or(Error::Conflict)?;
+                Ok(serde_json::to_value(authority.authorize_runner(
+                    &principal,
+                    client_id.into(),
+                    &session_id.as_str().into(),
+                    write,
+                )?)?)
+            }
             Request::Status => Ok(json!({"target":self.destination.target,
                 "configuration_revision":crate::workspace_config::RepositoryFiles::open(&self.destination.checkout_root)?.read()?.revision,
                 "receipt":self.authority.as_ref().map(Authority::runtime_owner).transpose()?.map(|(receipt, _contributor)| receipt)})),
@@ -181,6 +246,22 @@ impl Host {
                 )
             }
         }
+    }
+
+    fn runtime_principal(&self, source: Source) -> Result<Principal> {
+        if source != Source::Daemon {
+            return Err(Error::Forbidden);
+        }
+        let runtime = self.runtime.clone().ok_or(Error::Version)?;
+        let (_, contributor) = self
+            .authority
+            .as_ref()
+            .ok_or(Error::Conflict)?
+            .runtime_owner()?;
+        Ok(Principal {
+            contributor,
+            runtime: Some(runtime),
+        })
     }
 
     fn upload(&mut self, client_id: &str, chunk: RuntimeChunk) -> Result<Value> {
