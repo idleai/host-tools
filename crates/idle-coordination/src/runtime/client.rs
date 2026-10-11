@@ -19,10 +19,10 @@ use crate::{
     dev_tunnels::DevTunnels,
     invitation::Secret,
     service::ServiceResponse,
-    transport::{BoxStream, ClientTransport, bounded},
+    transport::{ClientTransport, bounded},
 };
 
-use super::{RuntimeInvitation, credentials::NoManagement, framing};
+use super::{RuntimeInvitation, credentials::NoManagement, framing, stream::RemoteStream};
 
 /// Explicit runtime connection approved for a local workspace and contributor.
 #[derive(Clone, Debug, Deserialize)]
@@ -68,6 +68,35 @@ enum Operation {
     Coordination {
         request: super::coordination::Request,
     },
+    Runner {
+        method: String,
+        params: Value,
+    },
+    RunnerEvents,
+    RunnerApprove {
+        id: Value,
+        decision: Decision,
+    },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum Decision {
+    Accept,
+    AcceptForSession,
+    Decline,
+    Cancel,
+}
+
+impl Decision {
+    const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Accept => "accept",
+            Self::AcceptForSession => "acceptForSession",
+            Self::Decline => "decline",
+            Self::Cancel => "cancel",
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -90,8 +119,8 @@ impl WorkspaceBinding {
     }
 }
 
-/// Serve serialized runtime reads with cancellation and bounded reconnect attempts.
-/// A response contains only validated daemon status, never invitation credentials.
+/// Serve bounded runtime calls and runner events with cancellation and reconnect.
+/// Responses never contain invitation credentials.
 /// # Errors
 /// Returns invalid framing, mismatched bindings or a broken private pipe.
 pub async fn serve_client(
@@ -171,6 +200,13 @@ pub async fn serve_client(
                             Operation::Coordination { request } => {
                                 client.coordination(request, &token).await
                             }
+                            Operation::Runner { method, params } => {
+                                client.runner(&method, params, &token).await
+                            }
+                            Operation::RunnerEvents => client.runner_events(&token).await,
+                            Operation::RunnerApprove { id, decision } => {
+                                client.runner_approve(id, decision, &token).await
+                            }
                         }
                     },
                 ))
@@ -203,7 +239,7 @@ pub async fn serve_client(
 struct Client {
     invitation: RuntimeInvitation,
     transport: Option<Box<dyn ClientTransport>>,
-    stream: Option<BoxStream>,
+    stream: Option<RemoteStream>,
     next_id: u64,
 }
 
@@ -236,7 +272,7 @@ impl Client {
             .await?;
         let stream = transport.take_stream()?;
         self.transport = Some(transport);
-        self.stream = Some(stream);
+        self.stream = Some(RemoteStream::new(stream));
         let invitation = &self.invitation;
         let response = self
             .exchange(
@@ -266,11 +302,11 @@ impl Client {
                 }),
             )
             .await?;
-        framing::write(
-            self.stream.as_mut().ok_or(Error::Transport)?,
-            &json!({"method":"initialized"}),
-        )
-        .await?;
+        self.stream
+            .as_mut()
+            .ok_or(Error::Transport)?
+            .send(&json!({"method":"initialized"}))
+            .await?;
         let _attached = self
             .rpc(
                 "idle/workspace/attach",
@@ -360,6 +396,14 @@ impl Client {
     }
 
     async fn rpc(&mut self, method: &str, params: Value) -> Result<Value> {
+        let response = self.rpc_response(method, params).await?;
+        if response.get("error").is_some() {
+            return Err(Error::Forbidden);
+        }
+        response.get("result").cloned().ok_or(Error::Invalid)
+    }
+
+    async fn rpc_response(&mut self, method: &str, params: Value) -> Result<Value> {
         self.next_id = self.next_id.checked_add(1).ok_or(Error::Invalid)?;
         let id = self.next_id;
         let response = self
@@ -368,22 +412,82 @@ impl Client {
         if response.get("id").and_then(Value::as_u64) != Some(id) {
             return Err(Error::Invalid);
         }
-        if response.get("error").is_some() {
-            return Err(Error::Forbidden);
-        }
-        response.get("result").cloned().ok_or(Error::Invalid)
+        Ok(response)
     }
 
     async fn exchange(&mut self, message: Value) -> Result<Value> {
-        let stream = self.stream.as_mut().ok_or(Error::Transport)?;
-        framing::write(stream, &message).await?;
-        framing::read(stream).await?.ok_or(Error::Transport)
+        self.stream
+            .as_mut()
+            .ok_or(Error::Transport)?
+            .exchange(&message)
+            .await
     }
 
     async fn close(&mut self) {
-        self.stream = None;
+        if let Some(stream) = self.stream.take() {
+            stream.close().await;
+        }
         if let Some(mut transport) = self.transport.take() {
             let _closed = transport.close().await;
         }
+    }
+
+    async fn runner_access(&mut self, cancel: &CancellationToken) -> Result<()> {
+        if !self.invitation.runner {
+            return Err(Error::Forbidden);
+        }
+        if self.invitation.expires_at <= SystemClock.now_ms()? {
+            return Err(Error::Expired);
+        }
+        if self.stream.is_none() {
+            self.connect(cancel).await?;
+        }
+        Ok(())
+    }
+
+    async fn runner(
+        &mut self,
+        method: &str,
+        params: Value,
+        cancel: &CancellationToken,
+    ) -> Result<Value> {
+        if !matches!(
+            method,
+            "thread/start"
+                | "thread/resume"
+                | "thread/fork"
+                | "thread/read"
+                | "thread/unsubscribe"
+                | "thread/turns/list"
+                | "thread/items/list"
+                | "turn/start"
+                | "turn/steer"
+                | "turn/interrupt"
+        ) {
+            return Err(Error::Forbidden);
+        }
+        self.runner_access(cancel).await?;
+        // Keep native errors available to the approved client. The daemon still
+        // checks every target, argument and permission before admitting the call.
+        Ok(json!({"response": self.rpc_response(method, params).await?}))
+    }
+
+    async fn runner_events(&mut self, cancel: &CancellationToken) -> Result<Value> {
+        self.runner_access(cancel).await?;
+        self.stream.as_ref().ok_or(Error::Transport)?.events()
+    }
+
+    async fn runner_approve(
+        &mut self,
+        id: Value,
+        decision: Decision,
+        cancel: &CancellationToken,
+    ) -> Result<Value> {
+        self.runner_access(cancel).await?;
+        self.stream
+            .as_mut()
+            .ok_or(Error::Transport)?
+            .approve(id, decision.as_str())
+            .await
     }
 }
