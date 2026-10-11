@@ -1,5 +1,6 @@
 //! Runtime-owned session publication and current runner authorization.
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use idle_protocol::v1::{
     ApiVersion, Change, WriteCondition,
     api::Request,
@@ -53,7 +54,8 @@ impl Authority {
                     },
                     routes: vec![ConnectionRoute {
                         protocol: "codex-idle-runtime".into(),
-                        reference: self.runtime_owner()?.0.target.checkout_id,
+                        reference: URL_SAFE_NO_PAD
+                            .encode(self.runtime_owner()?.0.target.checkout_id),
                     }],
                 },
             }),

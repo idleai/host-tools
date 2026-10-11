@@ -50,7 +50,7 @@ fn fixture() -> Result<Fixture, Box<dyn std::error::Error + Send + Sync>> {
     }
     let target_binding = RuntimeTarget {
         host_id: "daemon".into(),
-        checkout_id: "checkout".into(),
+        checkout_id: "checkout:one".into(),
     };
     let revision = authority.workspace_configuration()?.revision.clone();
     let receipt = authority.prepare_runtime_transfer(
