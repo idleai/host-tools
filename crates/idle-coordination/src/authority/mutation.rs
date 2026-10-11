@@ -26,7 +26,10 @@ impl State {
     ) -> Checked<(MutationValue, ChangeNotice)> {
         let actor = &principal.contributor.contributor_id;
         let _role = self.member(actor)?;
-        require(self.handoff.is_none(), ErrorCode::Conflict)?;
+        require(
+            self.handoff.is_none() && self.runtime_transfer.is_none(),
+            ErrorCode::Conflict,
+        )?;
         if let Some(fence) = &request.control_fence {
             require(self.current(principal, fence, now), ErrorCode::StaleControl)?;
         }

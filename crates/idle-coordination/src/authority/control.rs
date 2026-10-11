@@ -55,6 +55,7 @@ impl State {
 
     pub(super) fn current(&self, principal: &Principal, fence: &ControlFence, now: u64) -> bool {
         self.handoff.is_none()
+            && self.runtime_transfer.is_none()
             && self.validate_holder(principal, &fence.holder, now).is_ok()
             && self
                 .control

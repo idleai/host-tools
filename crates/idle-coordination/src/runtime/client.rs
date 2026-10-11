@@ -65,6 +65,9 @@ struct Call {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Operation {
     Status,
+    Coordination {
+        request: super::coordination::Request,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -165,6 +168,9 @@ pub async fn serve_client(
                     async {
                         match call.command {
                             Operation::Status => client.status(&token).await,
+                            Operation::Coordination { request } => {
+                                client.coordination(request, &token).await
+                            }
                         }
                     },
                 ))
@@ -310,6 +316,47 @@ impl Client {
             return Err(Error::Forbidden);
         }
         Ok(response)
+    }
+
+    async fn coordination(
+        &mut self,
+        request: super::coordination::Request,
+        cancel: &CancellationToken,
+    ) -> Result<Value> {
+        let status = matches!(request, super::coordination::Request::Status);
+        if !self.invitation.coordination_owner {
+            return Err(Error::Forbidden);
+        }
+        if self.invitation.expires_at <= SystemClock.now_ms()? {
+            return Err(Error::Expired);
+        }
+        if self.stream.is_none() {
+            self.connect(cancel).await?;
+        }
+        let response = self
+            .rpc(
+                "idle/coordination/call",
+                json!({"protocolVersion":1,
+            "checkoutId":self.invitation.checkout_id,"clientId":self.invitation.client_id,
+            "request":serde_json::to_string(&request)?}),
+            )
+            .await?;
+        let text = response
+            .get("response")
+            .and_then(Value::as_str)
+            .ok_or(Error::Invalid)?;
+        let result = serde_json::from_str::<Result<Value>>(text)??;
+        if status
+            && (result.pointer("/target/host_id").and_then(Value::as_str)
+                != Some(self.invitation.host_id.as_str())
+                || result
+                    .pointer("/target/checkout_id")
+                    .and_then(Value::as_str)
+                    != Some(self.invitation.checkout_id.as_str()))
+        {
+            return Err(Error::Forbidden);
+        }
+        Ok(result)
     }
 
     async fn rpc(&mut self, method: &str, params: Value) -> Result<Value> {

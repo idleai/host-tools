@@ -125,6 +125,19 @@ pub enum Command {
     FinishAdoption,
     /// Read the durable frozen package after restart.
     PendingAdoption,
+    /// Freeze standalone metadata for the explicitly approved daemon owner.
+    PrepareRuntimeTransfer {
+        /// Approved daemon and checkout.
+        target: crate::authority::runtime_transfer::RuntimeTarget,
+        /// Checkout definitions confirmed at both ends before freezing writes.
+        configuration_revision: String,
+    },
+    /// Read the retained daemon route, including after an interrupted transfer.
+    RuntimeTransferStatus,
+    /// Read a bounded private chunk from the frozen transfer.
+    RuntimeTransferChunk(usize),
+    /// Retain the daemon's acknowledgement without enabling local writes.
+    CompleteRuntimeTransfer(crate::authority::runtime_transfer::RuntimeReceipt),
 }
 
 /// One local service bound to a host-authenticated principal. Repository mutation
@@ -182,6 +195,7 @@ impl Service {
                 "discovery": crate::invitation::DISCOVERY_PROTOCOL, "engine_peer": editchain_sync::PEER_VERSION,
                 "tunnels_revision": crate::dev_tunnels::SDK_REVISION,
                 "workspace_configuration": 1,
+                "runtime_transfer": 1,
             })),
             Command::Snapshot => value(&self.authority.snapshot(&self.principal)?),
             Command::WorkspaceConfiguration => value(self.authority.workspace_configuration()?),
@@ -309,6 +323,27 @@ impl Service {
                 )
             }
             Command::PendingAdoption => value(&self.authority.pending_adoption(&self.principal)?),
+            Command::PrepareRuntimeTransfer {
+                target,
+                configuration_revision,
+            } => value(&self.authority.prepare_runtime_transfer(
+                &self.principal,
+                target,
+                &configuration_revision,
+            )?),
+            Command::RuntimeTransferStatus => {
+                value(&self.authority.runtime_transfer_status(&self.principal)?)
+            }
+            Command::RuntimeTransferChunk(offset) => value(
+                &self
+                    .authority
+                    .runtime_transfer_chunk(&self.principal, offset)?,
+            ),
+            Command::CompleteRuntimeTransfer(receipt) => value(
+                &self
+                    .authority
+                    .complete_runtime_transfer(&self.principal, receipt)?,
+            ),
         }
     }
 

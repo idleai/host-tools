@@ -12,9 +12,10 @@ use {
 fn main() -> io::Result<()> {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
     let relay = arguments.as_slice() == ["--runtime-relay"];
-    if !arguments.is_empty() && !relay {
+    let authority = arguments.as_slice() == ["--runtime-authority"];
+    if !arguments.is_empty() && !relay && !authority {
         return Err(io::Error::other(
-            "native host accepts only the --runtime-relay mode switch",
+            "native host accepts only --runtime-relay or --runtime-authority",
         ));
     }
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -30,6 +31,13 @@ fn main() -> io::Result<()> {
         });
         let result = if relay {
             idle_coordination::runtime::serve_relay(
+                tokio::io::stdin(),
+                tokio::io::stdout(),
+                &cancel,
+            )
+            .await
+        } else if authority {
+            idle_coordination::runtime::serve_authority(
                 tokio::io::stdin(),
                 tokio::io::stdout(),
                 &cancel,

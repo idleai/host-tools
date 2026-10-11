@@ -8,6 +8,7 @@ mod presence;
 mod recovery;
 mod repository;
 mod resources;
+pub mod runtime_transfer;
 mod state;
 pub(crate) mod validation;
 
@@ -99,10 +100,12 @@ impl Authority {
         {
             return Err(Error::Conflict);
         }
-        if state.control.lease.take().is_some() {
+        if state.runtime_transfer.is_none() && state.control.lease.take().is_some() {
             state.record_change(ChangeNotice::Control)?;
         }
-        state.clock_floor = state.clock_floor.max(clock.now_ms()?);
+        if state.runtime_transfer.is_none() {
+            state.clock_floor = state.clock_floor.max(clock.now_ms()?);
+        }
         let persisted = serde_json::to_vec(&state)?;
         storage.compare_exchange(STATE_KEY, previous.as_deref(), Some(&persisted))?;
         Ok(Self {
@@ -181,7 +184,7 @@ impl Authority {
                 ApiResult::Failure(failure(ErrorCode::IdempotencyConflict))
             });
         }
-        if self.state.handoff.is_some() {
+        if self.state.handoff.is_some() || self.state.runtime_transfer.is_some() {
             return Err(Error::Conflict);
         }
         if request.context.expires_at.0 <= now

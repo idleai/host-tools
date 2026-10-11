@@ -117,7 +117,7 @@ impl Authority {
     /// Rejects foreign runtimes, frozen/adopted authority or unavailable state.
     pub fn check_access(&self, principal: &Principal, check: &AccessCheck) -> Result<bool> {
         self.healthy()?;
-        if self.state.handoff.is_some() {
+        if self.state.handoff.is_some() || self.state.runtime_transfer.is_some() {
             return Err(Error::Forbidden);
         }
         let _role = self

@@ -176,6 +176,9 @@ impl Authority {
         history: HistoryConsent,
     ) -> Result<AdoptionPackage> {
         self.healthy()?;
+        if self.state.runtime_transfer.is_some() || self.state.runtime_owner.is_some() {
+            return Err(Error::Conflict);
+        }
         if principal.contributor.contributor_id != self.state.owner {
             return Err(Error::Forbidden);
         }

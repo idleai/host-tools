@@ -17,6 +17,7 @@ fn invitation() -> RuntimeInvitation {
         grant_id: "grant-one".into(),
         grant_token: Secret("a".repeat(64)),
         expires_at: 10_000,
+        coordination_owner: false,
         relay: RelayDescriptor {
             endpoint: RelayEndpoint {
                 tunnel_id: "tunnel-one".into(),
@@ -68,6 +69,24 @@ fn runtime_routes_reject_untrusted_servers() {
     assert!(
         value.encode(1).is_err(),
         "runtime credentials must only go to the validated relay"
+    );
+}
+
+#[test]
+fn coordination_ownership_requires_a_new_invitation_version() {
+    let mut value = invitation();
+    value.coordination_owner = true;
+    assert!(
+        value.encode(1).is_err(),
+        "an old invitation cannot gain owner permission"
+    );
+    value.version = 2;
+    let encoded = value.encode(1).expect("explicit owner invitation");
+    assert!(
+        RuntimeInvitation::parse(&encoded.0, 1)
+            .expect("new owner invitation")
+            .coordination_owner,
+        "new clients retain the explicit permission"
     );
 }
 
