@@ -4,11 +4,11 @@ use serde::{Deserialize, Serialize};
 use crate::{Error, Result, invitation::Secret, transport::RelayDescriptor};
 
 /// Private invitation for one approved Codex workspace connection.
-/// It grants no `EditChain` sharing, shell access or model execution.
+/// It grants no `EditChain` sharing or general file/terminal access.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RuntimeInvitation {
-    /// Version one permits attachment; version two can grant coordination ownership.
+    /// Versions one, two and three select attachment, coordination or runner access.
     pub version: u32,
     /// Expected persistent Codex installation identity.
     pub host_id: String,
@@ -33,6 +33,9 @@ pub struct RuntimeInvitation {
     /// Version two can explicitly allow standalone coordination ownership.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub coordination_owner: bool,
+    /// Version three explicitly permits bound runner sessions.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub runner: bool,
 }
 
 impl RuntimeInvitation {
@@ -67,8 +70,8 @@ impl RuntimeInvitation {
 
     fn validate(&self, now: u64) -> Result<()> {
         if !matches!(
-            (self.version, self.coordination_owner),
-            (1, false) | (2, true)
+            (self.version, self.coordination_owner, self.runner),
+            (1, false, false) | (2, true, false) | (3, false, true)
         ) {
             return Err(Error::Version);
         }

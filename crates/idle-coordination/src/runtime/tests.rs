@@ -18,6 +18,7 @@ fn invitation() -> RuntimeInvitation {
         grant_token: Secret("a".repeat(64)),
         expires_at: 10_000,
         coordination_owner: false,
+        runner: false,
         relay: RelayDescriptor {
             endpoint: RelayEndpoint {
                 tunnel_id: "tunnel-one".into(),
@@ -30,6 +31,31 @@ fn invitation() -> RuntimeInvitation {
             expires_at: 9_000,
         },
     }
+}
+
+#[test]
+fn runner_invitation_cannot_inherit_another_access_mode() {
+    let mut value = invitation();
+    value.runner = true;
+    assert_eq!(
+        value.encode(1),
+        Err(Error::Version),
+        "old versions reject runner access"
+    );
+    value.version = 3;
+    let encoded = value.encode(1).expect("explicit runner invitation");
+    assert!(
+        RuntimeInvitation::parse(&encoded.0, 1)
+            .expect("runner invitation")
+            .runner,
+        "runner access round trips"
+    );
+    value.coordination_owner = true;
+    assert_eq!(
+        value.encode(1),
+        Err(Error::Version),
+        "runner access cannot become coordination ownership"
+    );
 }
 
 #[test]
