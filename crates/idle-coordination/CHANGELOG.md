@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/idleai/host-tools/compare/idle-coordination-v0.4.0...idle-coordination-v0.5.0) - 2026-10-23
+
+### Other
+
+- Carry runner calls and approvals over native runtime connections ([#25](https://github.com/idleai/host-tools/pull/25))
+- Authorize daemon runner sessions through native workspace grants ([#24](https://github.com/idleai/host-tools/pull/24))
+
 ## [0.4.0](https://github.com/idleai/host-tools/compare/idle-coordination-v0.3.1...idle-coordination-v0.4.0) - 2026-10-11
 
 ### Other
