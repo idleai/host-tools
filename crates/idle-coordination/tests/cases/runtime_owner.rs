@@ -15,8 +15,11 @@ use tokio_util::sync::CancellationToken;
 
 use super::support::{self, TestClock, bootstrap, principal};
 
+#[path = "runtime_runner.rs"]
+mod runner;
+
 struct Fixture {
-    _root: tempfile::TempDir,
+    root: tempfile::TempDir,
     configuration: Value,
     receipt: RuntimeReceipt,
     chunk: RuntimeChunk,
@@ -60,7 +63,7 @@ fn fixture() -> Result<Fixture, Box<dyn std::error::Error + Send + Sync>> {
         configuration: json!({"version":1,"state_directory":directory,"destination":{
             "target":target_binding,"workspace_id":"workspace","repository_id":"repository","chain_id":"logical-chain","checkout_root":target
         }}),
-        _root: root,
+        root,
         receipt,
         chunk,
         directory,
@@ -84,9 +87,14 @@ async fn start(
         "helper negotiates its protocol before loading storage"
     )?;
     write_frame(&mut client, configuration).await?;
+    let ready = if configuration.get("version") == Some(&json!(2)) {
+        json!({"ready":true,"runner_authorization":1})
+    } else {
+        json!({"ready":true})
+    };
     equal!(
         read_frame::<Value>(&mut client).await?,
-        Some(json!({"ready":true})),
+        Some(ready),
         "helper acquires private ownership before readiness"
     )?;
     Ok((client, task))
