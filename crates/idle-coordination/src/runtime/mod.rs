@@ -9,6 +9,7 @@ mod credentials;
 mod framing;
 mod host;
 mod invitation;
+mod stream;
 
 pub use client::{Binding, serve_client};
 pub use coordination::serve_authority;

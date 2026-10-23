@@ -44,7 +44,8 @@ impl Client {
             Some(&json!([
                 "repository.local",
                 "runtime.workspace",
-                "coordination.runtime-owner"
+                "coordination.runtime-owner",
+                "runtime.runners"
             ])),
             "optional repository and runtime reads are advertised before use",
         )?;
