@@ -20,13 +20,19 @@ on:
         description: Exact dependencies selected for this CI run
         value: ${{ jobs.dependencies.outputs.artifact_id }}
 
+concurrency:
+  # Keep complete checks for the newest PR or feature-branch revision.
+  # Default-branch, manual and release validations have separate groups.
+  group: ci-checks::${{ github.workflow }}::${{ github.event_name }}::${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name != github.event.repository.default_branch && format('branch-{0}', github.ref_name) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name != github.event.repository.default_branch) }}
+
 permissions:
   contents: read
 
 jobs:
   dependencies:
     name: Resolve latest compatible releases
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.IDLE_LINUX_RUNNER || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: host-tools
@@ -97,7 +103,10 @@ jobs:
           cache-dependency-path: host-tools/packages/history-runtime/package-lock.json
       - run: npm --prefix packages/history-runtime ci
       - name: Install cargo-deny
-        run: cargo install cargo-deny --locked --version 0.20.2
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: cargo-deny@0.20.2
+          fallback: none
       - run: bash scripts/check.sh
 
   windows_dependencies:
