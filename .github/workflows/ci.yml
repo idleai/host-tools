@@ -66,7 +66,7 @@ jobs:
     needs: dependencies
     env:
       IDLE_RELEASE_INPUTS: ${{ github.workspace }}/host-tools/target/released-dependencies.json
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.IDLE_LINUX_RUNNER || 'ubuntu-latest' }}
     defaults:
       run:
         working-directory: host-tools
