@@ -41,7 +41,7 @@ jobs:
         shell: bash
     env:
       OPENSSL_STATIC: '1'
-      IDLE_RELEASE_INPUTS: ${{ github.workspace }}/target/released-dependencies.json
+      IDLE_RELEASE_INPUTS: ${{ github.workspace }}/../release-inputs/released-dependencies.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -57,13 +57,13 @@ jobs:
         if: ${{ inputs.dependencies_artifact != '' }}
         with:
           artifact-ids: ${{ inputs.dependencies_artifact }}
-          path: target
+          path: ${{ github.workspace }}/../release-inputs
       - name: Download recorded release dependencies for a manual retry
         if: ${{ !inputs.dependencies_artifact }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-        run: gh release download "$RELEASE_TAG" --pattern released-dependencies.json --dir target --clobber
+        run: gh release download "$RELEASE_TAG" --pattern released-dependencies.json --dir "$GITHUB_WORKSPACE/../release-inputs" --clobber
       - name: Restore the tested dependency selection
         run: python3 scripts/release_dependencies.py restore
       - uses: Swatinem/rust-cache@v2
