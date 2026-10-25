@@ -33,7 +33,7 @@ on:
 
 concurrency:
   group: ci-checks::${{ github.workflow }}::${{ inputs.revision || github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ inputs.revision == '' && github.ref_type != 'tag' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -42,7 +42,7 @@ jobs:
   dependencies:
     name: Preflight and dependencies
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 2 || 15 }}
     defaults:
       run:
         working-directory: host-tools
@@ -64,7 +64,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          FULL_CI: ${{ inputs.revision != '' || inputs.dependency_mode == 'latest' || github.event_name == 'workflow_dispatch' }}
+          FULL_CI: ${{ github.event_name != 'pull_request' || inputs.revision != '' }}
         run: python3 scripts/ci_scope.py
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -106,7 +106,7 @@ jobs:
     env:
       IDLE_RELEASE_INPUTS: ${{ github.workspace }}/../release-inputs/released-dependencies.json
     runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.IDLE_LINUX_RUNNER || github.event_name != 'pull_request' && vars.IDLE_BACKGROUND_RUNNER || 'ubuntu-24.04' }}
-    timeout-minutes: 45
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 7 || 45 }}
     defaults:
       run:
         working-directory: host-tools
@@ -148,7 +148,7 @@ jobs:
     needs: dependencies
     if: needs.dependencies.outputs.windows_dependencies == 'true'
     runs-on: windows-2022
-    timeout-minutes: 15
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 2 || 15 }}
     defaults:
       run:
         working-directory: host-tools
@@ -176,7 +176,10 @@ jobs:
     if: always()
     needs: [dependencies, check, windows_dependencies]
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 1
+    permissions:
+      contents: read
+      actions: read
     steps:
       - name: Require successful selected checks
         env:
@@ -197,3 +200,7 @@ jobs:
               raise SystemExit(f"Required CI jobs did not succeed: {failures}")
           print("All selected checks passed.")
           PY
+      - uses: idleai/codex-evo/.github/actions/check-pr-budget@idle-base
+        if: always() && github.event_name == 'pull_request'
+        with:
+          token: ${{ github.token }}
