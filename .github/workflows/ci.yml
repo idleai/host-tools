@@ -42,6 +42,7 @@ jobs:
   dependencies:
     name: Preflight and dependencies
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: host-tools
@@ -105,6 +106,7 @@ jobs:
     env:
       IDLE_RELEASE_INPUTS: ${{ github.workspace }}/host-tools/target/released-dependencies.json
     runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.IDLE_LINUX_RUNNER || github.event_name != 'pull_request' && vars.IDLE_BACKGROUND_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: host-tools
@@ -146,6 +148,7 @@ jobs:
     needs: dependencies
     if: needs.dependencies.outputs.windows_dependencies == 'true'
     runs-on: windows-2022
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: host-tools
@@ -173,6 +176,7 @@ jobs:
     if: always()
     needs: [dependencies, check, windows_dependencies]
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - name: Require successful selected checks
         env:
