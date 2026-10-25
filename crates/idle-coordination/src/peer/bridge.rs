@@ -2,7 +2,7 @@ use std::{collections::VecDeque, sync::Arc, time::Duration};
 
 use tokio::{
     io::{AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _},
-    time::{Instant, MissedTickBehavior},
+    time::{Instant, Interval, MissedTickBehavior},
 };
 use tokio_util::sync::CancellationToken;
 
@@ -72,12 +72,12 @@ impl Bridge {
                     expires
                 }
             });
-        let mut interval = tokio::time::interval(Duration::from_millis(1500));
-        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        let mut poll = InventoryPoll::new();
         let mut buffer = vec![0_u8; editchain_sync::MAX_BRIDGE_BYTES];
         let mut output = Output::new();
         let (mut reader, mut writer) = tokio::io::split(&mut self.stream);
         let first = worker.turn(Vec::new(), false).await?;
+        poll.complete_turn(false, first.progress.rounds);
         self.shared
             .progress(self.generation, id, first.device.as_ref(), first.progress)?;
         output.append(first.bytes)?;
@@ -89,7 +89,7 @@ impl Bridge {
                     written?;
                     continue;
                 }
-                _tick = interval.tick() => {
+                _tick = poll.tick() => {
                     if (!accepted && started.elapsed() > Duration::from_secs(30)) || last_input.elapsed() > Duration::from_secs(90) {
                         return Err(Error::Timeout);
                     }
@@ -105,12 +105,42 @@ impl Bridge {
                 }
             };
             let turn = worker.turn(bytes, tick).await?;
+            poll.complete_turn(tick, turn.progress.rounds);
             accepted = turn.progress.accepted;
             // Publish native durability before the remote reader accepts our ACK.
             self.shared
                 .progress(self.generation, id, turn.device.as_ref(), turn.progress)?;
             output.append(turn.bytes)?;
         }
+    }
+}
+
+struct InventoryPoll {
+    interval: Interval,
+    completed_rounds: u64,
+}
+
+impl InventoryPoll {
+    fn new() -> Self {
+        let mut interval = tokio::time::interval(Duration::from_millis(1500));
+        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        Self {
+            interval,
+            completed_rounds: 0,
+        }
+    }
+
+    async fn tick(&mut self) -> Instant {
+        self.interval.tick().await
+    }
+
+    fn complete_turn(&mut self, tick: bool, rounds: u64) {
+        // Slow native work must not leave another poll ahead of queued replies.
+        // A completed round also gets a full idle interval before the next check.
+        if tick || rounds > self.completed_rounds {
+            self.interval.reset();
+        }
+        self.completed_rounds = rounds;
     }
 }
 
@@ -176,8 +206,34 @@ impl Output {
 
 #[cfg(test)]
 mod tests {
-    use super::{Duration, Instant, Output};
+    use super::{Duration, Instant, InventoryPoll, Output};
     use crate::Error;
+
+    #[tokio::test(start_paused = true)]
+    async fn completed_native_work_leaves_time_for_queued_peer_input() {
+        for tick in [true, false] {
+            let mut poll = InventoryPoll::new();
+            let _first = poll.tick().await;
+            tokio::time::advance(Duration::from_secs(2)).await;
+            poll.complete_turn(tick, u64::from(!tick));
+            let started = Instant::now();
+            let input_ready = tokio::select! {
+                biased;
+                _tick = poll.tick() => false,
+                () = std::future::ready(()) => true,
+            };
+            assert!(
+                input_ready,
+                "a late poll must not overtake queued peer input"
+            );
+            let _next = poll.tick().await;
+            assert_eq!(
+                started.elapsed(),
+                Duration::from_millis(1500),
+                "both maintenance and completed rounds retain the full poll interval"
+            );
+        }
+    }
 
     #[test]
     fn blocked_peer_output_is_bounded_without_discarding_queued_bytes() {
