@@ -59,6 +59,9 @@ jobs:
           if-no-files-found: error
 
   verify:
+    permissions:
+      contents: read
+      actions: read
     needs: prepare
     if: needs.prepare.outputs.revision != ''
     uses: ./.github/workflows/ci.yml
