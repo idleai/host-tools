@@ -478,12 +478,19 @@ async fn cancelled_host_and_failed_stop_remain_disabled_across_restart() -> supp
 async fn expired_grants_without_renewal_stop_without_changing_consent() -> support::TestResult {
     let mut pair = Pair::new().await?;
     let _invitation = pair.connect(ScopeChoice::FromNow).await?;
+    until(|| {
+        pair.right
+            .status()
+            .peers
+            .iter()
+            .any(|peer| peer.state == ConnectionStatus::Live)
+    })
+    .await;
     let scope = pair.right_engine.scope().await?;
     pair.relay
         .clock
         .0
         .store(NOW.saturating_add(3_600_001), Ordering::SeqCst);
-    pair.right.reconnect().await?;
     until(|| {
         pair.right
             .status()
