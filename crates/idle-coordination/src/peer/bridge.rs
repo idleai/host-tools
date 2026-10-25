@@ -77,7 +77,7 @@ impl Bridge {
         let mut output = Output::new();
         let (mut reader, mut writer) = tokio::io::split(&mut self.stream);
         let first = worker.turn(Vec::new(), false).await?;
-        poll.complete_turn(false, first.progress.rounds);
+        poll.complete_turn(false, &first.progress);
         self.shared
             .progress(self.generation, id, first.device.as_ref(), first.progress)?;
         output.append(first.bytes)?;
@@ -108,8 +108,8 @@ impl Bridge {
                     (buffer.get(..count).ok_or(Error::Invalid)?.to_vec(), false)
                 }
             };
-            let turn = worker.turn(bytes, tick).await?;
-            poll.complete_turn(tick, turn.progress.rounds);
+            let turn = worker.turn(bytes, tick && poll.can_start_round()).await?;
+            poll.complete_turn(tick, &turn.progress);
             accepted = turn.progress.accepted;
             // Publish native durability before the remote reader accepts our ACK.
             self.shared
@@ -122,6 +122,8 @@ impl Bridge {
 struct InventoryPoll {
     interval: Interval,
     completed_rounds: u64,
+    completed_outgoing: u64,
+    outgoing_ready: bool,
 }
 
 impl InventoryPoll {
@@ -131,6 +133,8 @@ impl InventoryPoll {
         Self {
             interval,
             completed_rounds: 0,
+            completed_outgoing: 0,
+            outgoing_ready: true,
         }
     }
 
@@ -138,13 +142,25 @@ impl InventoryPoll {
         self.interval.tick().await
     }
 
-    fn complete_turn(&mut self, tick: bool, rounds: u64) {
+    fn can_start_round(&self) -> bool {
+        self.outgoing_ready
+    }
+
+    fn complete_turn(&mut self, tick: bool, progress: &editchain_sync::Progress) {
         // Slow native work must not leave another poll ahead of queued replies.
-        // A completed round also gets a full idle interval before the next check.
-        if tick || rounds > self.completed_rounds {
+        // Let both directions finish before starting another inventory round.
+        let outgoing = &progress.outgoing;
+        self.outgoing_ready = outgoing.pass == 0 || outgoing.complete;
+        if tick
+            || progress.rounds > self.completed_rounds
+            || (outgoing.complete && outgoing.pass > self.completed_outgoing)
+        {
             self.interval.reset();
         }
-        self.completed_rounds = rounds;
+        self.completed_rounds = progress.rounds;
+        if outgoing.complete {
+            self.completed_outgoing = outgoing.pass;
+        }
     }
 }
 
@@ -219,7 +235,13 @@ mod tests {
             let mut poll = InventoryPoll::new();
             let _first = poll.tick().await;
             tokio::time::advance(Duration::from_secs(2)).await;
-            poll.complete_turn(tick, u64::from(!tick));
+            poll.complete_turn(
+                tick,
+                &editchain_sync::Progress {
+                    rounds: u64::from(!tick),
+                    ..Default::default()
+                },
+            );
             let started = Instant::now();
             let input_ready = tokio::select! {
                 biased;
@@ -237,6 +259,38 @@ mod tests {
                 "both maintenance and completed rounds retain the full poll interval"
             );
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn slow_outgoing_checks_finish_before_another_incoming_round() {
+        let mut poll = InventoryPoll::new();
+        let _first = poll.tick().await;
+        let mut progress = editchain_sync::Progress {
+            rounds: 1,
+            outgoing: editchain_sync::CheckProgress {
+                pass: 1,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        poll.complete_turn(false, &progress);
+        let _maintenance = poll.tick().await;
+        assert!(
+            !poll.can_start_round(),
+            "maintenance cannot restart inventory while the peer is still checking"
+        );
+        poll.complete_turn(true, &progress);
+        tokio::time::advance(Duration::from_secs(2)).await;
+        progress.outgoing.complete = true;
+        poll.complete_turn(false, &progress);
+        assert!(poll.can_start_round());
+        let completed = Instant::now();
+        let _next = poll.tick().await;
+        assert_eq!(
+            completed.elapsed(),
+            Duration::from_millis(1500),
+            "outgoing completion leaves the full idle interval before another round"
+        );
     }
 
     #[test]
