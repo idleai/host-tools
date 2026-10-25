@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import platform
 import shutil
@@ -77,6 +78,8 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="idle-native-release-") as temporary:
         staging = Path(temporary)
+        if os.environ.get("IDLE_PRODUCT_INPUTS"):
+            shutil.copyfile(os.environ["IDLE_PRODUCT_INPUTS"], staging / "product-inputs.json")
         shutil.copyfile(release_dependencies.record_path(root), staging / "released-dependencies.json")
         (staging / "bin").mkdir()
         for binary in config["binaries"]:
