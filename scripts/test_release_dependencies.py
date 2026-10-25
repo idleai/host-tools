@@ -182,6 +182,42 @@ class BuildInputTests(unittest.TestCase):
             dependencies.ensure(self.root)
 
 
+    def write_pins(self, artifacts=None):
+        destination = self.root / dependencies.PINNED
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps({"schema": 1, "artifacts": artifacts or self.artifacts}))
+
+    def test_locked_ci_reuses_committed_inputs_without_network_or_cargo_update(self):
+        self.write_pins()
+        original = (self.root / "Cargo.lock").read_bytes()
+        with patch.object(dependencies, "latest", side_effect=AssertionError("network resolution")), \
+                patch.object(dependencies, "update_cargo", side_effect=AssertionError("Cargo update")):
+            first = dependencies.locked(self.root)
+            second = dependencies.locked(self.root)
+        self.assertEqual(dependencies.fingerprint(first), dependencies.fingerprint(second))
+        self.assertEqual((self.root / "Cargo.lock").read_bytes(), original)
+
+    def test_locked_ci_rejects_stale_artifact_requirements(self):
+        self.write_pins()
+        self.manifest.write_text(self.manifest.read_text().replace("^0.1.2", "^0.2.0"))
+        with self.assertRaisesRegex(ValueError, "identity changed"):
+            dependencies.locked(self.root)
+
+    def test_changed_pins_invalidate_an_existing_build_record(self):
+        self.write_pins()
+        dependencies.locked(self.root)
+        self.write_pins({"native-dependencies.json": {"schema": 1, "dependencies": {}}})
+        with self.assertRaisesRegex(ValueError, "requirements changed"):
+            dependencies.restore(self.root)
+
+    def test_explicit_pin_update_remains_reusable(self):
+        with patch.object(dependencies, "update_cargo"), \
+                patch.object(dependencies, "latest", return_value=self.selected):
+            selected = dependencies.pin(self.root)
+        self.assertEqual(dependencies.read(self.root), selected)
+        self.assertEqual(dependencies.locked(self.root)["artifacts"], self.artifacts)
+
+
 class ReleaseWatchTests(unittest.TestCase):
     @staticmethod
     def run_record(status="completed", conclusion="success"):
@@ -204,7 +240,7 @@ class ReleaseWatchTests(unittest.TestCase):
                 patch.object(WATCH.dependencies, "resolve", return_value={"cargo_lock": "new", "artifacts": {}}), \
                 patch.object(WATCH.subprocess, "run") as run:
             WATCH.main()
-        run.assert_called_once_with(["gh", "workflow", "run", "ci.yml", "--repo", "idleai/fixture", "--ref", "main"], check=True)
+        run.assert_called_once_with(["gh", "workflow", "run", "ci.yml", "--repo", "idleai/fixture", "--ref", "main", "-f", "dependency_mode=latest"], check=True)
 
     def test_same_selection_is_not_retried_until_it_changes_even_after_a_failure(self):
         record = {"cargo_lock": "selected", "artifacts": {}}

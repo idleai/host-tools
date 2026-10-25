@@ -43,8 +43,9 @@ def output(name, value):
 
 
 def metadata_only(paths):
-    return all(Path(path).name in {"Cargo.toml", "Cargo.lock", "CHANGELOG.md"}
-               and not path.startswith(".github/") for path in paths)
+    return all(path == str(release_dependencies.PINNED) or (
+        Path(path).name in {"Cargo.toml", "Cargo.lock", "CHANGELOG.md"}
+        and not path.startswith(".github/")) for path in paths)
 
 
 def packages():
@@ -88,6 +89,52 @@ def prepared_from(head, source):
             and bool(paths) and metadata_only(paths))
 
 
+def candidate_ref(source):
+    return f"refs/heads/ci/release/{source}"
+
+
+def staged_candidate(source):
+    ref = candidate_ref(source)
+    result = subprocess.run(["git", "ls-remote", "--exit-code", "origin", ref],
+                            text=True, capture_output=True, check=False)
+    if result.returncode == 2:
+        return None
+    result.check_returncode()
+    subprocess.run(["git", "fetch", "origin", ref], check=True)
+    head = command("git", "rev-parse", "FETCH_HEAD")
+    if not prepared_from(head, source):
+        raise ValueError("staged release contains changes outside the version commit")
+    return head
+
+
+def promote(source, revision):
+    """Advance main only after the reusable CI workflow verifies this commit."""
+    if not all(re.fullmatch(r"[0-9a-f]{40}", value) for value in (source, revision)):
+        raise ValueError("release revisions must be full commit IDs")
+    if os.environ.get("VERIFIED_RELEASE_REVISION") != revision:
+        raise ValueError("release promotion requires a successful CI result for this revision")
+    if command("git", "rev-parse", "HEAD") != revision or command("git", "status", "--porcelain"):
+        raise ValueError("release promotion requires a clean checkout of the verified revision")
+    subprocess.run(["git", "fetch", "origin", "main"], check=True)
+    current = command("git", "rev-parse", "origin/main")
+    if current not in (source, revision):
+        raise ValueError("a newer main commit superseded this release")
+    if revision != source and not prepared_from(revision, source):
+        raise ValueError("release promotion is limited to the prepared version commit")
+    repository = os.environ["GITHUB_REPOSITORY"]
+    run_id = os.environ["GITHUB_RUN_ID"]
+    check = {"name": "CI required", "head_sha": revision,
+             "status": "completed", "conclusion": "success",
+             "details_url": f"https://github.com/{repository}/actions/runs/{run_id}",
+             "output": {"title": "Release validation passed",
+                        "summary": "The reusable CI workflow validated this exact release commit before promotion."}}
+    subprocess.run(["gh", "api", "--method", "POST", f"repos/{repository}/check-runs", "--input", "-"],
+                   input=json.dumps(check), text=True, check=True, stdout=subprocess.DEVNULL)
+    if current != revision:
+        # A concurrent main update rejects this normal push. Never rewrite main.
+        subprocess.run(["git", "push", "origin", f"{revision}:refs/heads/main"], check=True)
+
+
 def prepare(source):
     if not re.fullmatch(r"[0-9a-f]{40}", source):
         raise ValueError("source must be a full commit ID")
@@ -97,20 +144,24 @@ def prepare(source):
     current = command("git", "rev-parse", "origin/main")
     if current != source:
         if prepared_from(current, source):
-            inputs = dependency_inputs()
-            # Keep the prepared commit's Rust selection when resuming publication.
-            if inputs is not None:
-                subprocess.run(["git", "restore", "Cargo.lock"], check=True)
             subprocess.run(["git", "checkout", "--detach", current], check=True)
-            record_dependencies(inputs)
+            release_dependencies.locked(Path.cwd())
             output("revision", current)
         else:
             print("A newer main commit owns the next release")
             output("revision", "")
         return
+    staged = staged_candidate(source)
+    if staged:
+        subprocess.run(["git", "checkout", "--detach", staged], check=True)
+        release_dependencies.locked(Path.cwd())
+        output("revision", staged)
+        return
     subprocess.run(["git", "checkout", "--detach", source], check=True)
     inputs = dependency_inputs()
     subprocess.run(["release-plz", "update", "--allow-dirty"], check=True)
+    if inputs is not None:
+        release_dependencies.write_pins(Path.cwd(), inputs["artifacts"])
     paths = command("git", "ls-files", "--modified", "--others", "--exclude-standard").splitlines()
     if not metadata_only(paths):
         raise ValueError(f"release-plz changed files outside release metadata: {paths}")
@@ -119,8 +170,8 @@ def prepare(source):
         subprocess.run(["git", "-c", "user.name=github-actions[bot]", "-c",
                         "user.email=41898282+github-actions[bot]@users.noreply.github.com", "commit",
                         "-m", "chore: prepare package releases", "-m", f"Release-Source: {source}"], check=True)
-        # A normal push rejects a concurrent main update. Never rewrite main.
-        subprocess.run(["git", "push", "origin", "HEAD:refs/heads/main"], check=True)
+        # Keep main unchanged until the reusable CI workflow validates this commit.
+        subprocess.run(["git", "push", "origin", f"HEAD:{candidate_ref(source)}"], check=True)
     head = command("git", "rev-parse", "HEAD")
     record_dependencies(inputs)
     unfinished = any(pending(package, head) for package in packages())
@@ -165,12 +216,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("prepare").add_argument("--source", required=True)
+    promotion = subparsers.add_parser("promote")
+    promotion.add_argument("--source", required=True)
+    promotion.add_argument("--revision", required=True)
     subparsers.add_parser("artifact").add_argument("--package", required=True)
     subparsers.add_parser("record")
     args = parser.parse_args()
     os.chdir(Path(__file__).resolve().parent.parent)
     if args.command == "prepare":
         prepare(args.source)
+    elif args.command == "promote":
+        promote(args.source, args.revision)
     elif args.command == "artifact":
         artifact(args.package)
     else:

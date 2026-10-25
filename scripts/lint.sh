@@ -55,7 +55,7 @@ check "cargo check" cargo check --workspace --all-targets --all-features --locke
 check "dependency boundaries" python3 scripts/check-dependency-boundaries.py
 
 # ---------------------------------------------------------------------------
-# Clippy (deny warnings)
+# Clippy also checks all targets; cargo test below includes doctests.
 # ---------------------------------------------------------------------------
 check "cargo clippy" cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
@@ -67,18 +67,12 @@ check "TypeScript interoperability tools" npm --prefix packages/history-runtime 
 check "cargo test" cargo test --workspace --all-features --locked
 
 # ---------------------------------------------------------------------------
-# Doc tests
-# ---------------------------------------------------------------------------
-check "cargo test (doc)" cargo test --workspace --all-features --doc --locked
-
-# ---------------------------------------------------------------------------
 # Rustdoc lint checks
 # ---------------------------------------------------------------------------
 # Build documentation so the Rustdoc lint table is exercised beyond doctests.
 check "cargo doc" cargo doc --workspace --all-features --no-deps --locked
 
 # Portable libraries must satisfy the same policy on WASM.
-check "cargo check (wasm32)" cargo check -p idle-protocol -p idle-history -p idle-history-graph --lib --all-features --locked --target wasm32-unknown-unknown
 check "cargo clippy (wasm32)" cargo clippy -p idle-protocol -p idle-history -p idle-history-graph --lib --all-features --locked --target wasm32-unknown-unknown -- -D warnings
 
 # ---------------------------------------------------------------------------

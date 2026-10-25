@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Start ordinary main CI when published dependencies change, without opening a PR."""
+"""Start ordinary main CI when published dependencies change, as a batched integration check."""
 
 import json
 import os
@@ -36,7 +36,7 @@ def main():
             print(f"CI run {run['id']} already checked this dependency selection ({run['conclusion']})")
             return
         break
-    subprocess.run(["gh", "workflow", "run", "ci.yml", "--repo", repository, "--ref", "main"], check=True)
+    subprocess.run(["gh", "workflow", "run", "ci.yml", "--repo", repository, "--ref", "main", "-f", "dependency_mode=latest"], check=True)
     print("Started main CI with the latest compatible releases")
 
 

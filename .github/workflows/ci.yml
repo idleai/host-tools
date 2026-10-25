@@ -1,11 +1,22 @@
 name: CI
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      dependency_mode:
+        description: Dependency selection
+        type: choice
+        options: [locked, latest]
+        default: locked
   workflow_call:
     inputs:
+      dependency_mode:
+        description: Use committed selections or explicitly test newer releases
+        required: false
+        type: string
+        default: locked
       revision:
         description: Commit to validate before publication
         required: true
@@ -20,32 +31,60 @@ on:
         description: Exact dependencies selected for this CI run
         value: ${{ jobs.dependencies.outputs.artifact_id }}
 
+concurrency:
+  group: ci-checks::${{ github.workflow }}::${{ inputs.revision || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ inputs.revision == '' && github.ref_type != 'tag' }}
+
 permissions:
   contents: read
 
 jobs:
   dependencies:
-    name: Resolve latest compatible releases
+    name: Preflight and dependencies
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: host-tools
     outputs:
       artifact_id: ${{ steps.save.outputs.artifact-id }}
+      windows_dependencies: ${{ steps.scope.outputs.windows_dependencies }}
+      native_bindings: ${{ steps.scope.outputs.native_bindings }}
+      consumers: ${{ steps.scope.outputs.consumers }}
+      browser: ${{ steps.scope.outputs.browser }}
     steps:
       - uses: actions/checkout@v7
         with:
           path: host-tools
           ref: ${{ inputs.revision || github.sha }}
           persist-credentials: false
+          fetch-depth: 0
+      - name: Select auxiliary checks
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          FULL_CI: ${{ inputs.revision != '' || inputs.dependency_mode == 'latest' || github.event_name == 'workflow_dispatch' }}
+        run: python3 scripts/ci_scope.py
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.97.0
-      - name: Select current released dependencies
+      - name: Check formatting and CI helpers before compilation
+        run: |
+          cargo fmt --all -- --check
+          python3 -m unittest discover -s scripts -p 'test_release_dependencies.py'
+          python3 -m unittest discover -s scripts -p 'test_ci_scope.py'
+      - name: Select build dependencies
         if: ${{ !inputs.dependencies_artifact }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 scripts/release_dependencies.py resolve
+          DEPENDENCY_MODE: ${{ inputs.dependency_mode || 'locked' }}
+        run: |
+          case "$DEPENDENCY_MODE" in
+            locked) python3 scripts/release_dependencies.py locked ;;
+            latest) python3 scripts/release_dependencies.py resolve ;;
+            *) echo "Unknown dependency selection: $DEPENDENCY_MODE" >&2; exit 1 ;;
+          esac
       - uses: actions/download-artifact@v8
         if: ${{ inputs.dependencies_artifact != '' }}
         with:
@@ -66,7 +105,8 @@ jobs:
     needs: dependencies
     env:
       IDLE_RELEASE_INPUTS: ${{ github.workspace }}/host-tools/target/released-dependencies.json
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.IDLE_LINUX_RUNNER || github.event_name != 'pull_request' && vars.IDLE_BACKGROUND_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: host-tools
@@ -81,15 +121,15 @@ jobs:
           toolchain: 1.97.0
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "host-tools -> target"
       - uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{ needs.dependencies.outputs.artifact_id }}
           path: host-tools/target
       - name: Restore this build's dependency selection
         run: python3 scripts/release_dependencies.py restore
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "host-tools -> target"
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
@@ -97,13 +137,18 @@ jobs:
           cache-dependency-path: host-tools/packages/history-runtime/package-lock.json
       - run: npm --prefix packages/history-runtime ci
       - name: Install cargo-deny
-        run: cargo install cargo-deny --locked --version 0.20.2
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: cargo-deny@0.20.2
+          fallback: none
       - run: bash scripts/check.sh
 
   windows_dependencies:
     name: Restore shared dependencies on Windows
     needs: dependencies
+    if: needs.dependencies.outputs.windows_dependencies == 'true'
     runs-on: windows-2022
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: host-tools
@@ -126,3 +171,29 @@ jobs:
         run: python scripts/release_dependencies.py restore
       - name: Check dependency selection and reuse
         run: python -m unittest discover -s scripts -p test_release_dependencies.py
+  required:
+    name: CI required
+    if: always()
+    needs: [dependencies, check, windows_dependencies]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require successful selected checks
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          SELECTED_WINDOWS_DEPENDENCIES: ${{ needs.dependencies.outputs.windows_dependencies }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          needs = json.loads(os.environ["NEEDS"])
+          failures = {
+              name: job["result"] for name, job in needs.items()
+              if job["result"] != "success" and not (
+                  job["result"] == "skipped"
+                  and os.environ.get("SELECTED_" + name.upper()) == "false"
+              )
+          }
+          if failures:
+              raise SystemExit(f"Required CI jobs did not succeed: {failures}")
+          print("All selected checks passed.")
+          PY

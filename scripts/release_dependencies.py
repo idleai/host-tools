@@ -15,6 +15,7 @@ import urllib.request
 PLATFORMS = ("linux-x64", "darwin-x64", "darwin-arm64", "win32-x64")
 MANIFESTS = ("native-dependencies.json", "consumer-dependencies.json")
 RECORD = Path("target/released-dependencies.json")
+PINNED = Path(".github/released-dependencies.lock.json")
 ENVIRONMENT = "IDLE_RELEASE_INPUTS"
 
 
@@ -71,7 +72,7 @@ def latest(dependency, native):
 
 def definition_hash(root):
     names = command(root, "git", "ls-files", "--cached", "--others", "--exclude-standard", "--",
-                    "Cargo.toml", "**/Cargo.toml", ".cargo/config.toml", *MANIFESTS).splitlines()
+                    "Cargo.toml", "**/Cargo.toml", ".cargo/config.toml", str(PINNED), *MANIFESTS).splitlines()
     # Normalize checkout line endings and decode Cargo manifests as UTF-8 on every host.
     hashes = {name: hashlib.sha256((root / name).read_text(encoding="utf-8").encode()).hexdigest() for name in sorted(set(names))}
     return hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
@@ -173,6 +174,30 @@ def resolve(root):
     return record
 
 
+def locked(root):
+    """Record committed Cargo and artifact selections without resolving releases."""
+    snapshot = json.loads((root / PINNED).read_text(encoding="utf-8"))
+    if snapshot.get("schema") != 1:
+        raise ValueError("unsupported pinned dependency selection")
+    capture(root, snapshot["artifacts"])
+    return read(root)
+
+
+def write_pins(root, artifacts):
+    """Persist the artifact selection alongside the committed Cargo lockfile."""
+    destination = root / PINNED
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps({"schema": 1, "artifacts": artifacts},
+                                     indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def pin(root):
+    """Refresh the committed selections for an explicit dependency update."""
+    record = resolve(root)
+    write_pins(root, record["artifacts"])
+    return capture(root, record["artifacts"])
+
+
 def ensure(root):
     if os.environ.get(ENVIRONMENT):
         record = read(root)
@@ -190,11 +215,15 @@ def fingerprint(record):
 def main():
     root = Path(__file__).resolve().parent.parent
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("resolve", "restore", "refresh", "verify", "run"), nargs="?", default="resolve")
+    parser.add_argument("command", choices=("resolve", "locked", "pin", "restore", "refresh", "verify", "run"), nargs="?", default="resolve")
     parser.add_argument("arguments", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.command == "resolve":
         resolve(root)
+    elif args.command == "locked":
+        locked(root)
+    elif args.command == "pin":
+        pin(root)
     elif args.command == "restore":
         restore(root)
     elif args.command == "refresh":
