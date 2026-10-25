@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2](https://github.com/idleai/host-tools/compare/idle-coordination-v0.5.1...idle-coordination-v0.5.2) - 2026-10-25
+
+### Fixed
+
+- *(coordination)* leave room for peer replies between inventory polls
+
+### Other
+
+- Finish both peer inventory directions before polling again
+- Keep peer deadlines independent of inventory polling
+
 ## [0.5.1](https://github.com/idleai/host-tools/compare/idle-coordination-v0.5.0...idle-coordination-v0.5.1) - 2026-10-25
 
 ### Other
