@@ -40,7 +40,7 @@ jobs:
         id: record
         if: ${{ !inputs.dependencies_artifact }}
         with:
-          name: native-release-dependencies
+          name: release-build-inputs
           path: release-inputs/released-dependencies.json
           if-no-files-found: error
 
