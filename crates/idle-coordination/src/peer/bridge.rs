@@ -82,6 +82,17 @@ impl Bridge {
             .progress(self.generation, id, first.device.as_ref(), first.progress)?;
         output.append(first.bytes)?;
         loop {
+            // Completed rounds may defer polling, but never these deadlines.
+            if (!accepted && started.elapsed() > Duration::from_secs(30))
+                || last_input.elapsed() > Duration::from_secs(90)
+            {
+                return Err(Error::Timeout);
+            }
+            if let Some(deadline) = renew_at
+                && self.shared.clock.now_ms()? >= deadline
+            {
+                return Err(Error::Expired);
+            }
             let (bytes, tick) = tokio::select! {
                 biased;
                 () = self.cancel.cancelled() => return Err(Error::Cancelled),
@@ -89,14 +100,7 @@ impl Bridge {
                     written?;
                     continue;
                 }
-                _tick = poll.tick() => {
-                    if (!accepted && started.elapsed() > Duration::from_secs(30)) || last_input.elapsed() > Duration::from_secs(90) {
-                        return Err(Error::Timeout);
-                    }
-                    if let Some(deadline) = renew_at
-                        && self.shared.clock.now_ms()? >= deadline { return Err(Error::Expired); }
-                    (Vec::new(), true)
-                }
+                _tick = poll.tick() => (Vec::new(), true),
                 result = reader.read(&mut buffer) => {
                     let count = result.map_err(|_error| Error::Transport)?;
                     if count == 0 { return Err(Error::Transport); }
