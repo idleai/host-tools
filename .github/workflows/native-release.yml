@@ -22,7 +22,30 @@ permissions:
   contents: read
 
 jobs:
+  dependencies:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      artifact_id: ${{ inputs.dependencies_artifact || steps.record.outputs.artifact-id }}
+    steps:
+      - name: Download recorded dependencies from the draft release
+        if: ${{ !inputs.dependencies_artifact }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: gh release download "$RELEASE_TAG" --pattern released-dependencies.json --dir release-inputs --clobber
+      - uses: actions/upload-artifact@v7
+        id: record
+        if: ${{ !inputs.dependencies_artifact }}
+        with:
+          name: release-build-inputs
+          path: release-inputs/released-dependencies.json
+          if-no-files-found: error
+
   build:
+    needs: dependencies
     strategy:
       fail-fast: false
       matrix:
@@ -54,16 +77,9 @@ jobs:
         with:
           python-version: '3.12'
       - uses: actions/download-artifact@v8
-        if: ${{ inputs.dependencies_artifact != '' }}
         with:
-          artifact-ids: ${{ inputs.dependencies_artifact }}
+          artifact-ids: ${{ needs.dependencies.outputs.artifact_id }}
           path: ${{ github.workspace }}/../release-inputs
-      - name: Download recorded release dependencies for a manual retry
-        if: ${{ !inputs.dependencies_artifact }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-        run: gh release download "$RELEASE_TAG" --pattern released-dependencies.json --dir "$GITHUB_WORKSPACE/../release-inputs" --clobber
       - name: Restore the tested dependency selection
         run: python3 scripts/release_dependencies.py restore
       - uses: Swatinem/rust-cache@v2
