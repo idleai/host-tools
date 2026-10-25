@@ -85,6 +85,10 @@ class ReleasePreparationTests(unittest.TestCase):
         revision = self.prepare(inputs=inputs)
         self.assertEqual(self.run_git(self.remote, "show", f"{revision}:Cargo.lock"), lock.strip())
         self.assertEqual(self.run_git(self.checkout, "rev-parse", "HEAD^"), self.source)
+        pins = self.run_git(self.remote, "show", f"{revision}:.github/released-dependencies.lock.json")
+        self.assertEqual(json.loads(pins), {"schema": 1, "artifacts": {}})
+        self.assertTrue(AUTOMATION.metadata_only([".github/released-dependencies.lock.json"]))
+        self.assertFalse(AUTOMATION.metadata_only([".github/workflows/ci.yml"]))
 
     def test_retry_restores_the_prepared_dependencies_before_reusing_the_commit(self):
         revision = self.prepare()

@@ -43,8 +43,9 @@ def output(name, value):
 
 
 def metadata_only(paths):
-    return all(Path(path).name in {"Cargo.toml", "Cargo.lock", "CHANGELOG.md"}
-               and not path.startswith(".github/") for path in paths)
+    return all(path == str(release_dependencies.PINNED) or (
+        Path(path).name in {"Cargo.toml", "Cargo.lock", "CHANGELOG.md"}
+        and not path.startswith(".github/")) for path in paths)
 
 
 def packages():
@@ -111,6 +112,8 @@ def prepare(source):
     subprocess.run(["git", "checkout", "--detach", source], check=True)
     inputs = dependency_inputs()
     subprocess.run(["release-plz", "update", "--allow-dirty"], check=True)
+    if inputs is not None:
+        release_dependencies.write_pins(Path.cwd(), inputs["artifacts"])
     paths = command("git", "ls-files", "--modified", "--others", "--exclude-standard").splitlines()
     if not metadata_only(paths):
         raise ValueError(f"release-plz changed files outside release metadata: {paths}")
