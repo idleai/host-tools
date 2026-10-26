@@ -40,6 +40,18 @@ pub struct FilePersistence {
     guard: Mutex<File>,
 }
 
+impl Drop for FilePersistence {
+    fn drop(&mut self) {
+        // A concurrent process launch can inherit the descriptor until exec.
+        // Release ownership even while that duplicate is still open.
+        let guard = self
+            .guard
+            .get_mut()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _unlocked = guard.unlock();
+    }
+}
+
 impl FilePersistence {
     /// Open or create a private directory and hold its exclusive owner lock.
     /// Existing directory permissions must already restrict access to its owner.
@@ -163,6 +175,35 @@ impl Persistence for FilePersistence {
         }
         #[cfg(unix)]
         File::open(&self.directory)?.sync_all()?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Error, FilePersistence};
+
+    #[test]
+    fn owner_lock_releases_after_shutdown_with_a_duplicate_handle()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let directory = root.path().join("private");
+        let owner = FilePersistence::open(&directory)?;
+        let duplicate = owner
+            .guard
+            .lock()
+            .map_err(|_error| "owner mutex poisoned")?
+            .try_clone()?;
+        if !matches!(FilePersistence::open(&directory), Err(Error::Busy)) {
+            return Err("the active owner must exclude another service".into());
+        }
+        drop(owner);
+        let next = FilePersistence::open(&directory)?;
+        drop(duplicate);
+        if !matches!(FilePersistence::open(&directory), Err(Error::Busy)) {
+            return Err("closing the old duplicate must retain the new owner lock".into());
+        }
+        drop(next);
         Ok(())
     }
 }
