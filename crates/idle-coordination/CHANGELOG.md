@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3](https://github.com/idleai/host-tools/compare/idle-coordination-v0.5.2...idle-coordination-v0.5.3) - 2026-10-26
+
+### Fixed
+
+- release coordination owner locks on shutdown ([#35](https://github.com/idleai/host-tools/pull/35))
+
 ## [0.5.2](https://github.com/idleai/host-tools/compare/idle-coordination-v0.5.1...idle-coordination-v0.5.2) - 2026-10-25
 
 ### Fixed
