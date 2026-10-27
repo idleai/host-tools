@@ -1,6 +1,7 @@
 //! Read-only Git objects from the checkout explicitly installed by the host.
 
 mod command;
+pub(crate) mod files;
 
 use std::{collections::BTreeMap, io, path::PathBuf};
 
@@ -96,11 +97,20 @@ pub(crate) fn document(binding: &Binding, repository: &str, oid: &str) -> io::Re
     }
     let object = editchain_core::GitOid::from_hex(oid)
         .ok_or_else(|| io::Error::other("Invalid commit hash."))?;
-    let _commit = editchain_git::resolve_commit(&handle, &object).map_err(io::Error::other)?;
+    let commit = editchain_git::resolve_commit(&handle, &object).map_err(io::Error::other)?;
+    let mut json = Vec::new();
+    let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+    commit
+        .serialize(&mut serde_json::Serializer::with_formatter(
+            &mut json, formatter,
+        ))
+        .map_err(io::Error::other)?;
+    let metadata = String::from_utf8(json).map_err(io::Error::other)?;
     let content = command::show(root, oid)?;
     Ok(QueryResult::Commit {
         repository: repository.into(),
         oid: oid.into(),
         content,
+        metadata,
     })
 }

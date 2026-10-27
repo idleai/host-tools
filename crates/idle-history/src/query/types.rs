@@ -141,6 +141,11 @@ pub enum QueryAction {
         /// Complete commit hash.
         oid: String,
     },
+    /// Resolve both immutable sides of an advertised Git file change.
+    CommitFile {
+        /// Complete descriptor supplied by the native Activity window.
+        change: Box<crate::timeline::CommitFile>,
+    },
 }
 
 /// Native content action. Hosts report unavailable capabilities as errors.
@@ -372,6 +377,17 @@ pub enum QueryResult {
         oid: String,
         /// Commit description and textual patch.
         content: String,
+        /// Full resolved commit fields for read-only JSON inspection.
+        metadata: String,
+    },
+    /// Immutable UTF-8 file sides, or a binary descriptor with empty text sides.
+    CommitFile {
+        /// Exact validated descriptor from the request.
+        change: Box<crate::timeline::CommitFile>,
+        /// First-parent content; empty for an addition or binary file.
+        before: String,
+        /// Commit-side content; empty for a deletion or binary file.
+        after: String,
     },
 }
 

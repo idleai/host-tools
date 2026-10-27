@@ -239,6 +239,89 @@ fn normalized_tools_share_the_raw_session_and_skip_editor_markers() -> io::Resul
 }
 
 #[test]
+fn legacy_file_names_resolve_from_their_recorded_sources_and_annotations() -> io::Result<()> {
+    use editchain_core::{FileEdit, FileOp, FileStage, PathId};
+    for kind in ["provider", "human", "annotation"] {
+        let directory = tempfile::tempdir()?;
+        let engine = Engine::open(directory.path())?;
+        let path = "src/recorded-file.rs";
+        let value = match kind {
+            "provider" => {
+                serde_json::json!({"type":"event_msg","payload":{"type":"item_completed","item":{
+                    "type":"FileChange", "status":"completed", "changes":[{"path":path}]
+                }}})
+            }
+            "human" => serde_json::json!({"source":"vscode.work","schema":1,"session":"editor",
+                "turn":1,"edit_group":id(900).to_string(),"source_event":id(901).to_string(),
+                "kind":"edit","path":path,"before":null,"after":null,"git":null,
+                "context_observed_ms":null,"summary":"Human edit"}),
+            _ => serde_json::json!({"type":"recorded_file"}),
+        };
+        let original = raw(1, None, &value)?;
+        let mut file = tool(101, 1);
+        file.tags = Tags::FILE;
+        file.kind = OpKind::File(FileOp {
+            path: PathId(42),
+            stage: FileStage::Applied,
+            base: None,
+            after: None,
+            edit: FileEdit::None,
+        });
+        let _appended = engine.append(&original)?;
+        let _appended = engine.append(&file)?;
+        if kind == "provider" {
+            let output = file.source.ok_or_else(|| io::Error::other("file source"))?;
+            let _appended = engine.append(&derivation(
+                200,
+                &original,
+                vec![CodexLogicalChange::Upsert {
+                    turn: "turn".into(),
+                    item: "file".into(),
+                    incarnation: source(1),
+                    outputs: vec![output],
+                }],
+                vec![output],
+            )?)?;
+        }
+        if kind == "annotation" {
+            let _appended = engine.append(&Op {
+                id: id(201),
+                source: None,
+                parents: ParentSet::One(file.id),
+                actor: file.actor,
+                clock: file.clock,
+                scope: file.scope,
+                tags: Tags::META | Tags::FILE,
+                kind: OpKind::Note(NoteOp {
+                    target_ids: vec![file.id],
+                    relationship: NoteRelationship::Explains,
+                    content: Payload::Inline(path.as_bytes().to_vec()),
+                }),
+            })?;
+        }
+        let window = latest(&binding(directory.path()))?;
+        let row = window
+            .rows
+            .iter()
+            .find(|row| row.presentation.file)
+            .ok_or_else(|| io::Error::other(format!("{kind}: actionable file row")))?;
+        equal!(
+            row.presentation.file_path.as_deref(),
+            Some(path),
+            "file display retains the exact recorded path without consulting a working file"
+        );
+        equal!(
+            row.address
+                .record()
+                .map(|record| record.record.operation.clone()),
+            Some(file.id.to_string()),
+            "display metadata preserves the exact file destination"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn childless_item_notifications_stay_hidden_and_recorded_exec_failures_stay_visible()
 -> io::Result<()> {
     let directory = tempfile::tempdir()?;
