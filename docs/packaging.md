@@ -31,7 +31,7 @@ Keep consumer minimum versions accurate when adopting a new API: `^0.1.2`
 accepts `0.1.3`; adopting `0.2.0` requires a manifest change.
 
 The [Check latest released dependencies workflow](../.github/workflows/update-releases.yml)
-checks every 15 minutes, or on manual request, and starts main CI when inputs
+checks every six hours, or on manual request, and starts main CI when inputs
 change. PR builds resolve immediately. No dependency-update branch or PR is
 created. Retry a failed selection through CI or publish a fix for the next check.
 Release preparation incorporates the selected Cargo dependencies in its version

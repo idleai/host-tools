@@ -95,17 +95,45 @@ class BuildInputTests(unittest.TestCase):
     def git(self, *arguments):
         return subprocess.check_output(["git", *arguments], cwd=self.root, text=True).strip()
 
-    def test_same_source_commit_can_select_a_newer_release_on_the_next_build(self):
+    def test_fresh_builds_adopt_releases_while_checks_and_packaging_reuse_their_selection(self):
         original = self.manifest.read_bytes()
-        with patch.object(dependencies, "update_cargo") as update, \
+        stale = copy.deepcopy(self.artifacts)
+        stale["native-dependencies.json"]["dependencies"]["engine"]["tag"] = "engine-v0.1.2"
+        self.write_pins(stale)
+        self.git("add", str(dependencies.PINNED))
+        self.git("commit", "-qm", "record older release")
+        pinned = (self.root / dependencies.PINNED).read_bytes()
+        versions = iter(("0.1.3", "0.1.4"))
+
+        def update_lock(root):
+            version = next(versions)
+            (root / "Cargo.lock").write_text(
+                f'version = 4\n[[package]]\nname = "engine"\nversion = "{version}"\n')
+
+        with patch.object(dependencies, "update_cargo", side_effect=update_lock) as update, \
                 patch.object(dependencies, "latest", return_value=self.selected) as latest:
             first = dependencies.ensure(self.root)
-            latest.return_value = dict(self.selected, tag="engine-v0.1.4")
+            latest.return_value = dict(self.selected, tag="engine-v0.1.4",
+                                       sha256={platform: "b" * 64 for platform in dependencies.PLATFORMS})
+            with patch.dict(os.environ, {dependencies.ENVIRONMENT: str(dependencies.record_path(self.root))}):
+                self.assertEqual(dependencies.ensure(self.root), first)
+                (self.root / "Cargo.lock").write_text('version = 4\n# stale cache\n')
+                self.assertEqual(dependencies.restore(self.root), first)
+                self.assertEqual(dependencies.ensure(self.root), first)
+                self.assertEqual(update.call_count, 1)
+                self.assertEqual(latest.call_count, 1)
             second = dependencies.ensure(self.root)
+
         self.assertEqual(update.call_count, 2)
+        self.assertEqual(latest.call_count, 2)
         self.assertEqual(first["revision"], second["revision"])
+        self.assertEqual(first["artifacts"], self.artifacts)
+        self.assertEqual(second["artifacts"]["native-dependencies.json"]["dependencies"]["engine"]["tag"],
+                         "engine-v0.1.4")
+        self.assertNotEqual(first["cargo_lock"], second["cargo_lock"])
         self.assertNotEqual(dependencies.fingerprint(first), dependencies.fingerprint(second))
         self.assertEqual(self.manifest.read_bytes(), original)
+        self.assertEqual((self.root / dependencies.PINNED).read_bytes(), pinned)
 
     def test_child_checks_reuse_the_build_selection_without_network_resolution(self):
         selected = dependencies.capture(self.root, self.artifacts)
