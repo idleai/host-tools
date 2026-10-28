@@ -18,12 +18,12 @@
           "package": "editchain",
           "repository": "idleai/editchain",
           "sha256": {
-            "darwin-arm64": "745751662ca27264957cca7573f1277ed04f454f47dce055f9097b3ea2983d18",
-            "darwin-x64": "a0a817476fbaf4e4707e56a31a1494cc02811d92c98fde75d656e93d66edd604",
-            "linux-x64": "9f83237e6357867f714877f39748a88ee2012a788dbc324c6219f42512340ac3",
-            "win32-x64": "3952b6b8490d572c0d56cae4f784e7c932781579dc6b1f8dcac78a9922b505af"
+            "darwin-arm64": "6fd8d2e66649e1c910a3ccd7fb5f44d653f68a7ac374e411064a66a912a19282",
+            "darwin-x64": "41832dbac224909a70b83e9c7316532993bb7e950cd0dd57cb1f4a8ca806f164",
+            "linux-x64": "064623bb823f84a972a77f587bd74c9556dc7928ba2bef05e5f240f7a22fc1c4",
+            "win32-x64": "dc717f65cea3bfe71e0b3d6580a52a93645f0d13e9a024fa37b0b148b7fe2b5a"
           },
-          "tag": "editchain-v0.1.7",
+          "tag": "editchain-v0.1.8",
           "version": "^0.1.6"
         }
       },
