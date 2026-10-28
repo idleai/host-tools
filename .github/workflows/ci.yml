@@ -8,15 +8,15 @@ on:
       dependency_mode:
         description: Dependency selection
         type: choice
-        options: [locked, latest]
-        default: locked
+        options: [latest, locked]
+        default: latest
   workflow_call:
     inputs:
       dependency_mode:
-        description: Use committed selections or explicitly test newer releases
+        description: Select latest compatible releases or replay committed selections
         required: false
         type: string
-        default: locked
+        default: latest
       revision:
         description: Commit to validate before publication
         required: true
@@ -77,7 +77,7 @@ jobs:
         if: ${{ !inputs.dependencies_artifact }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEPENDENCY_MODE: ${{ inputs.dependency_mode || 'locked' }}
+          DEPENDENCY_MODE: ${{ inputs.dependency_mode || 'latest' }}
         run: |
           case "$DEPENDENCY_MODE" in
             locked) python3 scripts/release_dependencies.py locked ;;
