@@ -1,4 +1,4 @@
-//! Resumable HEAD ancestry, separate from immutable recorded operations.
+//! Resumable HEAD and recorded commit ancestry in the explicitly bound repository.
 
 mod rows;
 
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     facts,
-    model::{BATCH, Build, Phase},
+    model::{BATCH, Build, Phase, Snapshot},
     read,
 };
 
@@ -21,8 +21,15 @@ pub(super) struct Walk {
     seen: OrderedSet<String>,
     previous_head: Option<String>,
     reached: bool,
-    incremental: bool,
+    resume: Resume,
     retire: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+enum Resume {
+    Materialize,
+    Changes,
+    MaterializeChanges,
 }
 
 pub(super) fn begin(
@@ -39,11 +46,7 @@ pub(super) fn begin(
             .as_ref()
             .map(|value| (&value.root, value.repository));
     let retire = incremental && !same_repository;
-    let pending = current
-        .as_ref()
-        .and_then(|value| value.head.clone())
-        .into_iter()
-        .collect();
+    let pending = roots(&build.snapshot);
     let previous_head = previous.and_then(|value| value.head);
     refresh_labels(build);
     build.phase = Phase::Git(Walk {
@@ -51,9 +54,75 @@ pub(super) fn begin(
         seen: OrderedSet::default(),
         previous_head,
         reached: false,
-        incremental,
+        resume: if incremental {
+            Resume::Changes
+        } else {
+            Resume::Materialize
+        },
         retire,
     });
+}
+
+pub(super) fn changed(build: &mut Build) {
+    let Some(repository) = build
+        .snapshot
+        .git_source
+        .as_ref()
+        .and_then(|source| source.repository)
+    else {
+        build.phase = Phase::MaterializeChanges;
+        return;
+    };
+    let pending: Vec<_> = roots(&build.snapshot)
+        .into_iter()
+        .filter(|oid| {
+            !build
+                .snapshot
+                .live_git
+                .contains(&format!("git:{repository}:{oid}"))
+        })
+        .collect();
+    build.phase = if pending.is_empty() {
+        Phase::MaterializeChanges
+    } else {
+        Phase::Git(Walk {
+            pending,
+            seen: OrderedSet::default(),
+            previous_head: None,
+            reached: true,
+            resume: Resume::MaterializeChanges,
+            retire: false,
+        })
+    };
+}
+
+fn roots(snapshot: &Snapshot) -> Vec<String> {
+    let Some(source) = &snapshot.git_source else {
+        return Vec::new();
+    };
+    let Some(repository) = source.repository else {
+        return Vec::new();
+    };
+    let prefix = format!("git:{repository}:");
+    let recorded = snapshot.references.iter().filter_map(|(id, references)| {
+        let oid = id.strip_prefix(&prefix)?;
+        (GitOid::from_hex(oid).is_some()
+            && references.iter().any(|reference| {
+                snapshot
+                    .facts
+                    .get(reference)
+                    .is_some_and(|fact| fact.row.address.record().is_some())
+            }))
+        .then(|| oid.to_owned())
+    });
+    source
+        .head
+        .iter()
+        .cloned()
+        .chain(recorded)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 pub(super) fn advance(build: &mut Build, mut walk: Walk) -> io::Result<()> {
@@ -73,7 +142,7 @@ pub(super) fn advance(build: &mut Build, mut walk: Walk) -> io::Result<()> {
         resolve(build, &mut walk)?;
     }
     if !walk.retire && walk.pending.is_empty() {
-        if walk.incremental && walk.previous_head.is_some() && !walk.reached {
+        if walk.resume == Resume::Changes && walk.previous_head.is_some() && !walk.reached {
             walk.retire = true;
             walk.previous_head = None;
             walk.seen.clear();
@@ -90,13 +159,7 @@ fn retire(build: &mut Build, walk: &mut Walk) {
     for _ in 0..BATCH {
         let Some(id) = build.snapshot.live_git.iter().next().cloned() else {
             walk.retire = false;
-            walk.pending = build
-                .snapshot
-                .git_source
-                .as_ref()
-                .and_then(|value| value.head.clone())
-                .into_iter()
-                .collect();
+            walk.pending = roots(&build.snapshot);
             walk.seen.clear();
             walk.previous_head = None;
             return;
@@ -146,7 +209,7 @@ fn resolve(build: &mut Build, walk: &mut Walk) -> io::Result<()> {
                 );
                 facts::install(&mut build.snapshot, fact, text);
                 let _inserted = build.snapshot.live_git.insert(id.clone());
-                if walk.incremental {
+                if walk.resume != Resume::Materialize {
                     super::build::dirty(build, &id);
                 }
             }
@@ -163,12 +226,12 @@ fn resolve(build: &mut Build, walk: &mut Walk) -> io::Result<()> {
 }
 
 fn complete(build: &mut Build, walk: &Walk) {
-    build.phase = if walk.incremental {
-        Phase::Changes {
+    build.phase = match walk.resume {
+        Resume::Changes => Phase::Changes {
             after: build.snapshot.accepted.clone(),
-        }
-    } else {
-        Phase::Materialize
+        },
+        Resume::Materialize => Phase::Materialize,
+        Resume::MaterializeChanges => Phase::MaterializeChanges,
     };
     build.processed = 0;
 }

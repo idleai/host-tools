@@ -1,5 +1,8 @@
 //! Rank/select window reads and indexed literal Find.
 
+mod captions;
+mod expanded;
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     io,
@@ -28,6 +31,7 @@ use super::{
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) struct ReadView {
     rank: RankTree<Order, String>,
+    children: BTreeMap<String, Vec<Row>>,
 }
 
 /// Compact row data ordered beside its neighbors for bounded sequential reads.
@@ -49,6 +53,8 @@ pub(super) fn summary(snapshot: &Snapshot, node: &super::model::Node) -> Option<
         row.records.extend(original.row.address.record().cloned());
     }
     row.relationships.clone_from(&node.relationships);
+    row.presentation.file_path = super::details::file_path(snapshot, &row);
+    row.details = super::details::disclosure(snapshot, &row);
     if row.kind == idle_history::query::ActivityKind::File && row.preview.is_empty() {
         let paths: BTreeSet<_> = snapshot
             .supporting
@@ -292,6 +298,20 @@ fn view_rank(snapshot: &Snapshot, view: &View) -> RankTree<Order, String> {
             }
         }
     }
+    for id in &view.exposed {
+        if let Some(node) = snapshot.nodes.get(id)
+            && rank.get(&node.order()).is_some()
+        {
+            drop(rank.insert(
+                node.order(),
+                id.clone(),
+                Measure {
+                    expanded: 1,
+                    visible: 1,
+                },
+            ));
+        }
+    }
     rank
 }
 
@@ -304,22 +324,20 @@ pub(super) fn window(
 ) -> io::Result<Response> {
     let (position, limit) = request;
     let limit = validate(limit)?;
-    if view.disclosures.len() > 2_000 {
+    if view.disclosures.len() > 2_000 || view.details.len() > 1_024 || view.exposed.len() > 2_000 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "Too many Activity disclosure choices.",
         ));
     }
     let mut view = view.clone();
-    if let Position::Seek(id) = position
-        && let Some(group) = snapshot.membership.get(id)
-    {
-        view.disclosures.retain(|choice| choice.group != *group);
-        view.disclosures.push(idle_history::timeline::Disclosure {
-            group: group.clone(),
-            expanded: true,
-        });
+    if let Position::Seek(id) = position {
+        view.exposed.push(id.clone());
     }
+    view.details.sort();
+    view.details.dedup();
+    view.exposed.sort();
+    view.exposed.dedup();
     view.disclosures
         .sort_by(|left, right| left.group.cmp(&right.group));
     let view_id = digest(&view)?;
@@ -332,15 +350,13 @@ pub(super) fn window(
         trim(cache);
         drop(cache.insert(
             view_id.clone(),
-            ReadView {
-                rank: view_rank(snapshot, &view),
-            },
+            expanded::view(snapshot, &view, view_rank(snapshot, &view))?,
         ));
     }
-    let rank = &cache
+    let read_view = cache
         .get(&view_id)
-        .ok_or_else(|| io::Error::other("Activity view is unavailable."))?
-        .rank;
+        .ok_or_else(|| io::Error::other("Activity view is unavailable."))?;
+    let rank = &read_view.rank;
     let offset = match position {
         Position::Latest | Position::Refresh(None) => 0,
         Position::Page(cursor) => cursor.offset,
@@ -357,15 +373,17 @@ pub(super) fn window(
     .min(rank.measure().visible.saturating_sub(1));
     let mut ids = Vec::new();
     for index in 0..limit {
-        let Some((order, id, _)) = rank.select(
-            offset.saturating_add(u64::try_from(index).unwrap_or(u64::MAX)),
-            Axis::Visible,
-        ) else {
+        let position = offset.saturating_add(u64::try_from(index).unwrap_or(u64::MAX));
+        let Some((order, id, prefix)) = rank.select(position, Axis::Visible) else {
             break;
         };
-        ids.push((order.clone(), id.clone()));
+        ids.push((
+            order.clone(),
+            id.clone(),
+            usize::try_from(position.saturating_sub(prefix.visible)).unwrap_or(usize::MAX),
+        ));
     }
-    let rows = rows(snapshot, &ids, &view);
+    let rows = expanded::rows(snapshot, &ids, &view, read_view);
     let after = offset.saturating_add(u64::try_from(rows.len()).unwrap_or(u64::MAX));
     let cursor = |offset| Cursor {
         revision: snapshot.revision.clone(),
@@ -477,7 +495,8 @@ fn row(
             .iter()
             .find(|choice| choice.group == group.id)
             .map_or(group.expanded, |choice| choice.expanded);
-        if group.header && !group.expanded {
+        if group.header && !group.expanded && !view.exposed.iter().any(|exposed| exposed == id) {
+            row.presentation.task_summary = true;
             if !group.summary.is_empty() {
                 row.preview.clone_from(&group.summary);
                 row.tags.clear();
@@ -526,6 +545,7 @@ fn row(
         parents: graph.parents,
         clipped_below: view.filter != Filter::default(),
     };
+    captions::apply(&mut row, summary.session.as_deref());
     Some(row)
 }
 
@@ -603,6 +623,7 @@ fn find(
             view_id.clone(),
             ReadView {
                 rank: search(snapshot, view, &text),
+                children: BTreeMap::new(),
             },
         ));
     }
