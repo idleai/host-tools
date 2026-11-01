@@ -50,14 +50,25 @@ class VersionSelectionTests(unittest.TestCase):
                 patch.object(dependencies.urllib.request, "urlopen", side_effect=response):
             return dependencies.latest({"repository": "idleai/editchain", "package": "engine", "version": "^0.1.2"}, True)
 
-    def test_latest_complete_compatible_release_wins(self):
+    def test_latest_linux_release_does_not_wait_for_manual_platforms(self):
         releases = [self.release("0.2.0"), self.release("0.1.10", draft=True),
                     self.release("0.1.9", prerelease=True),
                     self.release("0.1.8", missing="engine-v0.1.8-win32-x64.tar.gz.sha256"),
                     self.release("0.1.2"), self.release("0.1.3")]
         selected = self.latest(releases)
+        self.assertEqual(selected["tag"], "engine-v0.1.8")
+        self.assertEqual(set(selected["sha256"]), set(dependencies.PLATFORMS) - {"win32-x64"})
+
+    def test_missing_linux_checksum_still_blocks_release_selection(self):
+        selected = self.latest([self.release("0.1.3"), self.release(
+            "0.1.4", missing="engine-v0.1.4-linux-x64.tar.gz.sha256")])
         self.assertEqual(selected["tag"], "engine-v0.1.3")
         self.assertEqual(set(selected["sha256"]), set(dependencies.PLATFORMS))
+
+    def test_linux_only_release_is_usable(self):
+        release = self.release("0.1.4")
+        release["assets"] = [asset for asset in release["assets"] if "linux-x64" in asset["name"]]
+        self.assertEqual(self.latest([release])["sha256"], {"linux-x64": "a" * 64})
 
     def test_missing_compatible_release_fails(self):
         with self.assertRaisesRegex(RuntimeError, "no complete compatible"):
@@ -185,13 +196,63 @@ class BuildInputTests(unittest.TestCase):
 
     def test_incompatible_or_incomplete_artifact_is_rejected(self):
         for change in (lambda value: value.update(tag="engine-v0.2.0"),
-                       lambda value: value["sha256"].pop("win32-x64"),
+                       lambda value: value["sha256"].pop("linux-x64"),
+                       lambda value: value["sha256"].update(unknown="a" * 64),
                        lambda value: value.update(repository="another/repository")):
             artifacts = copy.deepcopy(self.artifacts)
             change(artifacts["native-dependencies.json"]["dependencies"]["engine"])
             dependencies.capture(self.root, artifacts)
             with self.assertRaises(ValueError):
                 dependencies.restore(self.root)
+
+    def linux_record(self):
+        artifacts = copy.deepcopy(self.artifacts)
+        artifacts["native-dependencies.json"]["dependencies"]["engine"]["sha256"] = {"linux-x64": "a" * 64}
+        return dependencies.capture(self.root, artifacts)
+
+    def test_linux_only_record_is_reused_without_resolving_again(self):
+        record = self.linux_record()
+        with patch.object(dependencies, "resolve", side_effect=AssertionError("new resolution")):
+            self.assertEqual(dependencies.restore(self.root), record)
+
+    def test_manual_expansion_preserves_versions_linux_checksum_and_lockfile(self):
+        original = self.linux_record()
+        real_command = dependencies.command
+
+        def command(root, *args):
+            if args[0] == "gh":
+                self.assertEqual(args, ("gh", "api", "repos/idleai/editchain/releases/tags/engine-v0.1.3"))
+                return json.dumps(VersionSelectionTests.release("0.1.3"))
+            return real_command(root, *args)
+
+        with patch.object(dependencies, "command", side_effect=command), \
+                patch.object(dependencies, "archive_checksum", return_value="b" * 64), \
+                patch.object(dependencies, "latest", side_effect=AssertionError("new version selection")):
+            record = dependencies.expand_platforms(self.root)
+        selected = record["artifacts"]["native-dependencies.json"]["dependencies"]["engine"]
+        self.assertEqual(selected["tag"], "engine-v0.1.3")
+        self.assertEqual(selected["sha256"]["linux-x64"], "a" * 64)
+        self.assertEqual(set(selected["sha256"]), set(dependencies.PLATFORMS))
+        for key in ("revision", "definitions", "cargo_lock"):
+            self.assertEqual(record[key], original[key])
+        self.assertEqual(dependencies.read(self.root), record)
+
+    def test_manual_expansion_fails_atomically_when_a_pinned_platform_is_missing(self):
+        self.linux_record()
+        original = dependencies.record_path(self.root).read_bytes()
+        real_command = dependencies.command
+
+        def command(root, *args):
+            if args[0] == "gh":
+                return json.dumps(VersionSelectionTests.release(
+                    "0.1.3", missing="engine-v0.1.3-win32-x64.tar.gz.sha256"))
+            return real_command(root, *args)
+
+        with patch.object(dependencies, "command", side_effect=command), \
+                patch.object(dependencies, "archive_checksum", return_value="b" * 64):
+            with self.assertRaisesRegex(RuntimeError, "manual full-platform workflow first"):
+                dependencies.expand_platforms(self.root)
+        self.assertEqual(dependencies.record_path(self.root).read_bytes(), original)
 
     def test_local_native_bundle_is_usable_only_for_explicit_integration_checks(self):
         selected = dict(self.selected, local_platform="linux-x64", sha256={"linux-x64": "a" * 64})

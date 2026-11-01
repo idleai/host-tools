@@ -15,7 +15,7 @@ concurrency:
 jobs:
   check:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.IDLE_BACKGROUND_RUNNER || 'idle-background-linux-x64' }}
     steps:
       - uses: actions/checkout@v7
         with:

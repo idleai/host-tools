@@ -11,7 +11,8 @@ Checks and builds need only this repository's source. The canonical
 Cargo releases at the start. The committed `Cargo.lock` supplies the initial
 third-party selection. The
 [native dependency manifest](../native-dependencies.json) declares compatible
-engine and exporter ranges; resolution requires complete platform bundles.
+engine and exporter ranges; automatic resolution requires a Linux x64 bundle and checksum. Other published
+platform checksums are retained when available.
 
 The resolver verifies published checksums and writes the selected versions and
 Cargo lockfile to ignored `target/released-dependencies.json`. CI jobs, release
@@ -48,7 +49,7 @@ The [Release workflow](../.github/workflows/release.yml) starts after successful
 
 1. Release-plz calculates versions and changelogs from commit messages and Rust
    API checks, then commits the release metadata to `main`.
-2. The full CI workflow checks that version commit.
+2. The Linux CI workflow checks that version commit.
 3. Crate archives, Cargo index entries and native bundles publish from that
    verified commit using its tested dependency selection.
 
@@ -62,15 +63,40 @@ publication with its verified commit, even if `main` has advanced. Dispatch
 **Release** on `main` to prepare current changes or resume its version commit.
 Retries can finish draft releases; published versions and archives are immutable.
 
-The [native release workflow](../.github/workflows/native-release.yml) builds
-Linux x64, macOS x64/arm64 and Windows x64 bundles. It publishes the native draft
-after all platform builds complete. [native-release.json](../native-release.json)
-defines the producer's binaries and test support.
+The [native release workflow](../.github/workflows/native-release.yml) automatically
+builds Linux x64 in an Ubuntu 22.04 container on the local runner pool, then
+publishes the native draft. [native-release.json](../native-release.json) defines
+the producer's binaries and test support. macOS and Windows bundles are added
+through the manual workflow below.
 
 Both `idle-host` and `idle-coordination` ship in the `idle-coordination-v*`
 bundle. `idle-host` keeps its version calculation and Git tags, so a change to
 that binary alone still updates the shared bundle version. It does not create
 a separate GitHub release; the combined bundle owns the downloadable assets.
+
+## CI platforms and manual builds
+
+Automatic pull-request, main, scheduled, and release runs select Linux only.
+Trusted PR jobs use the local PR pool; other Linux release work uses
+`IDLE_BACKGROUND_RUNNER` (default `idle-background-linux-x64`). Fork PRs use
+GitHub-hosted Ubuntu. Windows dependency checks run only from the manual entrypoint.
+
+Run [Full platform CI](../.github/workflows/full-platform.yml) from Actions with an
+existing release tag, or use:
+
+```sh
+gh workflow run full-platform.yml --repo idleai/host-tools --ref main -f tag=EXISTING_RELEASE_TAG
+```
+
+The run checks out that tag and reuses its recorded dependency versions. It does
+not prepare a new version commit. Native dependency tags must already have the
+required platform bundles: run their manual workflows first, starting with
+`editchain`, then `host-tools`, then consumers. The workflow reports any missing
+pinned dependency instead of choosing a different version.
+
+The manual run builds Linux x64, macOS x64/arm64, and Windows x64 bundles, then
+attaches missing archives and checksums to the same release. Existing assets are
+never overwritten. Set `publish` to `false` for validation with CI artifacts only.
 
 ## Unpublished integration
 

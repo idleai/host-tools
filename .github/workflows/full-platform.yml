@@ -1,0 +1,73 @@
+name: Full platform CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Attach missing platform assets; disable to validate without changing the release
+        type: boolean
+        default: true
+      tag:
+        description: Existing release tag to validate; native bundles are attached to this release
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: full-platform-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  dependencies:
+    runs-on: ${{ vars.IDLE_BACKGROUND_RUNNER || 'idle-background-linux-x64' }}
+    outputs:
+      artifact: ${{ steps.save.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          path: release-source
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: release-tools
+          persist-credentials: false
+      - name: Load the original release dependency versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          IDLE_RELEASE_INPUTS: ${{ github.workspace }}/release-inputs/released-dependencies.json
+        run: |
+          gh release download "$RELEASE_TAG" --pattern released-dependencies.json --dir release-inputs --clobber
+          python3 release-tools/scripts/release_dependencies.py --root release-source expand-platforms
+      - uses: actions/upload-artifact@v7
+        id: save
+        with:
+          name: full-platform-dependencies
+          path: release-inputs/released-dependencies.json
+          if-no-files-found: error
+
+  verify:
+    needs: dependencies
+    uses: ./.github/workflows/ci.yml
+    with:
+      revision: ${{ inputs.tag }}
+      dependencies_artifact: ${{ needs.dependencies.outputs.artifact }}
+      all_platforms: true
+
+  artifacts:
+    needs: [verify, dependencies]
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/native-release.yml
+    with:
+      publish: ${{ inputs.publish }}
+      tag: ${{ inputs.tag }}
+      all_platforms: true
+      dependencies_artifact: ${{ needs.dependencies.outputs.artifact }}
