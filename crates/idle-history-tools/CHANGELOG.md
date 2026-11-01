@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3](https://github.com/idleai/host-tools/compare/idle-history-tools-v0.6.2...idle-history-tools-v0.6.3) - 2026-11-01
+
+### Other
+
+- adopt internal releases within the selected major ([#40](https://github.com/idleai/host-tools/pull/40))
+
 ## [0.6.1](https://github.com/idleai/host-tools/compare/idle-history-tools-v0.6.0...idle-history-tools-v0.6.1) - 2026-11-01
 
 ### Other
