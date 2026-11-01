@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/idleai/host-tools/compare/idle-history-v0.5.4...idle-history-v0.6.0) - 2026-11-01
+
+### Added
+
+- *(history)* add inline activity details and immutable Git files ([#36](https://github.com/idleai/host-tools/pull/36))
+
 ## [0.3.0](https://github.com/idleai/host-tools/compare/idle-history-v0.2.0...idle-history-v0.3.0) - 2026-10-08
 
 ### Other
