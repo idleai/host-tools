@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve current compatible releases once for a build and retain its inputs."""
+"""Resolve releases within declared version bounds once per build."""
 
 import argparse
 import hashlib
@@ -24,9 +24,16 @@ def command(root, *arguments):
 
 
 def matches(requirement, version):
+    bounded = re.fullmatch(r">=\s*(\d+)\.(\d+)\.(\d+)\s*,\s*<\s*(\d+)\.(\d+)\.(\d+)", requirement)
+    if bounded:
+        values = tuple(map(int, bounded.groups()))
+        minimum, maximum = values[:3], values[3:]
+        if maximum != (minimum[0] + 1, 0, 0):
+            raise ValueError(f"expected the next major version as the upper bound: {requirement}")
+        return minimum <= version < maximum
     match = re.fullmatch(r"\^?(\d+)(?:\.(\d+))?(?:\.(\d+))?", requirement)
     if not match:
-        raise ValueError(f"expected a Cargo caret version requirement: {requirement}")
+        raise ValueError(f"expected a Cargo caret or bounded major version requirement: {requirement}")
     parts = [int(part) for part in match.groups() if part is not None]
     minimum = tuple(parts + [0] * (3 - len(parts)))
     boundary = next((index for index, value in enumerate(parts) if value), len(parts) - 1)

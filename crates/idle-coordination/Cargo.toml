@@ -17,7 +17,7 @@ workspace = true
 [dependencies]
 idle-history = { registry = "idle-host-tools", version = "0.6.0", path = "../idle-history" }
 idle-protocol = { registry = "idle-host-tools", version = "0.6.0", path = "../idle-protocol" }
-editchain-sync = { registry = "idle-editchain", version = "0.1.0" }
+editchain-sync = { registry = "idle-editchain", version = ">=0.1.0, <1.0.0" }
 async-trait = "0.1"
 base64 = "0.23"
 blake3 = "1"
@@ -37,6 +37,6 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "nat
 russh = { version = "0.37.1", default-features = false, features = ["openssl"] }
 
 [dev-dependencies]
-editchain-core = { registry = "idle-editchain", version = "0.1.0" }
-editchain-store = { registry = "idle-editchain", version = "0.1.0" }
+editchain-core = { registry = "idle-editchain", version = ">=0.1.0, <1.0.0" }
+editchain-store = { registry = "idle-editchain", version = ">=0.1.0, <1.0.0" }
 tokio = { version = "1", features = ["test-util"] }

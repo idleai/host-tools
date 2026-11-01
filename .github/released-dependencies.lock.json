@@ -12,7 +12,7 @@
             "win32-x64": "657d87bfeec51c35058cee53f989c128f0262b74cb2ed4053b732b58dfe08338"
           },
           "tag": "codex-session-exporter-v0.1.1",
-          "version": "^0.1.1"
+          "version": ">=0.1.1, <1.0.0"
         },
         "engine": {
           "package": "editchain",
@@ -24,7 +24,7 @@
             "win32-x64": "dc717f65cea3bfe71e0b3d6580a52a93645f0d13e9a024fa37b0b148b7fe2b5a"
           },
           "tag": "editchain-v0.1.8",
-          "version": "^0.1.6"
+          "version": ">=0.1.6, <1.0.0"
         }
       },
       "schema": 1

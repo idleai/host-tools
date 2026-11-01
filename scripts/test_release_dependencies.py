@@ -6,8 +6,10 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from unittest.mock import patch
 
@@ -19,6 +21,23 @@ SPEC.loader.exec_module(WATCH)
 
 
 class VersionSelectionTests(unittest.TestCase):
+    def test_major_ranges_accept_minor_updates_and_reject_major_updates(self):
+        for requirement, version, expected in (
+            (">=0.5.1, <1.0.0", (0, 5, 0), False),
+            (">=0.5.1, <1.0.0", (0, 5, 1), True),
+            (">=0.5.1, <1.0.0", (0, 6, 0), True),
+            (">=0.5.1, <1.0.0", (0, 99, 99), True),
+            (">=0.5.1, <1.0.0", (1, 0, 0), False),
+            (">=0.0.3, <1.0.0", (0, 0, 4), True),
+            (">=1.2.3, <2.0.0", (1, 9, 0), True),
+            (">=1.2.3, <2.0.0", (2, 0, 0), False),
+        ):
+            with self.subTest(requirement=requirement, version=version):
+                self.assertEqual(dependencies.matches(requirement, version), expected)
+        for requirement in (">=0.5.1", ">=0.5.1, <2.0.0", ">=1.2.3, <1.3.0"):
+            with self.subTest(requirement=requirement), self.assertRaises(ValueError):
+                dependencies.matches(requirement, (1, 0, 0))
+
     def test_cargo_compatibility_ranges(self):
         for requirement, version, expected in (
             ("^0.1.2", (0, 1, 3), True), ("^0.1.2", (0, 2, 0), False),
@@ -41,14 +60,23 @@ class VersionSelectionTests(unittest.TestCase):
                 "assets": [{"name": name, "browser_download_url": f"https://example.test/{name}"}
                            for name in names if name != missing]}
 
-    def latest(self, releases, checksum_name=None):
+    def latest(self, releases, checksum_name=None, requirement="^0.1.2"):
         def response(request, timeout):
             filename = request.full_url.rsplit("/", 1)[1].removesuffix(".sha256")
             return io.BytesIO(f"{'a' * 64}  {checksum_name or filename}\n".encode())
 
         with patch.object(dependencies.subprocess, "check_output", return_value="\n".join(map(json.dumps, releases))), \
                 patch.object(dependencies.urllib.request, "urlopen", side_effect=response):
-            return dependencies.latest({"repository": "idleai/editchain", "package": "engine", "version": "^0.1.2"}, True)
+            return dependencies.latest({"repository": "idleai/editchain", "package": "engine", "version": requirement}, True)
+
+    def test_latest_complete_release_can_cross_zero_minor_versions(self):
+        releases = [self.release("1.0.0"), self.release("0.4.0", draft=True),
+                    self.release("0.3.9", prerelease=True),
+                    self.release("0.3.8", missing="engine-v0.3.8-win32-x64.tar.gz.sha256"),
+                    self.release("0.1.3"), self.release("0.2.0")]
+        selected = self.latest(releases, requirement=">=0.1.2, <1.0.0")
+        self.assertEqual(selected["tag"], "engine-v0.2.0")
+        self.assertEqual(set(selected["sha256"]), set(dependencies.PLATFORMS))
 
     def test_latest_complete_compatible_release_wins(self):
         releases = [self.release("0.2.0"), self.release("0.1.10", draft=True),
@@ -68,6 +96,38 @@ class VersionSelectionTests(unittest.TestCase):
             self.latest([self.release("0.1.3")], checksum_name="another.tar.gz")
 
 
+class RepositoryRequirementsTests(unittest.TestCase):
+    def test_external_idle_requirements_allow_minor_updates_but_stop_at_next_major(self):
+        root = Path(__file__).resolve().parent.parent
+        paths = dependencies.command(root, "git", "ls-files", "Cargo.toml", "**/Cargo.toml").splitlines()
+
+        def specifications(table):
+            if not isinstance(table, dict):
+                return
+            if table.get("registry", "").startswith("idle-") and "path" not in table:
+                yield table["version"]
+            for value in table.values():
+                yield from specifications(value)
+
+        requirements = [(name, version) for name in paths
+                        for version in specifications(tomllib.loads((root / name).read_text(encoding="utf-8")))]
+        for name in dependencies.MANIFESTS:
+            path = root / name
+            if path.exists():
+                requirements.extend((name, item["version"]) for item in
+                                    json.loads(path.read_text(encoding="utf-8"))["dependencies"].values()
+                                    if item["repository"].startswith("idleai/"))
+        for name, requirement in requirements:
+            with self.subTest(manifest=name, requirement=requirement):
+                match = re.fullmatch(r">=(\d+)\.(\d+)\.(\d+), <(\d+)\.0\.0", requirement)
+                self.assertIsNotNone(match, "Idle dependencies need an explicit range ending at the next major")
+                major, minor, patch, upper = map(int, match.groups())
+                self.assertEqual(upper, major + 1)
+                self.assertTrue(dependencies.matches(requirement, (major, minor, patch)))
+                self.assertTrue(dependencies.matches(requirement, (major, minor + 1, 0)))
+                self.assertFalse(dependencies.matches(requirement, (upper, 0, 0)))
+
+
 class BuildInputTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -84,7 +144,7 @@ class BuildInputTests(unittest.TestCase):
         (self.root / "Cargo.toml").write_text('[package]\nname = "fixture"\nversion = "0.1.0"\n')
         (self.root / "Cargo.lock").write_text('version = 4\n')
         (self.root / ".gitignore").write_text('/target/\n')
-        self.specification = {"repository": "idleai/editchain", "package": "engine", "version": "^0.1.2"}
+        self.specification = {"repository": "idleai/editchain", "package": "engine", "version": ">=0.1.2, <1.0.0"}
         self.manifest = self.root / "native-dependencies.json"
         self.manifest.write_text(json.dumps({"schema": 2, "dependencies": {"engine": self.specification}}))
         self.git("add", ".")
@@ -95,6 +155,46 @@ class BuildInputTests(unittest.TestCase):
     def git(self, *arguments):
         return subprocess.check_output(["git", *arguments], cwd=self.root, text=True).strip()
 
+    def test_cargo_update_adopts_a_new_zero_minor_release_without_crossing_major(self):
+        index = self.root / "registry"
+        (index / "id/le").mkdir(parents=True)
+        (index / "config.json").write_text(json.dumps({"dl": "https://example.test/crates"}))
+        versions = ("0.5.0", "0.5.4", "0.6.0", "1.0.0")
+        (index / "id/le/idle-fixture").write_text("\n".join(json.dumps({
+            "name": "idle-fixture", "vers": version, "deps": [],
+            "cksum": "a" * 64, "features": {}, "yanked": False,
+        }) for version in versions) + "\n")
+        subprocess.run(["git", "init", "-q", str(index)], check=True)
+        subprocess.run(["git", "-C", str(index), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(index), "-c", "user.name=Fixture", "-c",
+                        "user.email=fixture@example.test", "commit", "-qm", "registry"], check=True)
+        config = self.root / ".cargo/config.toml"
+        config.parent.mkdir()
+        source = "https://raw.githubusercontent.com/idleai/fixture/cargo-index"
+        config.write_text(f'[registries.idle-fixture]\nindex = "{source}"\n'
+                          f'[source.idle-fixture]\nregistry = "{source}"\nreplace-with = "fixture"\n'
+                          f'[source.fixture]\nregistry = "{index.as_uri()}"\n')
+        (self.root / "src").mkdir()
+        (self.root / "src/lib.rs").write_text("")
+        manifest = self.root / "Cargo.toml"
+        manifest.write_text(manifest.read_text() + '\n[dependencies]\n'
+                            'idle-fixture = { registry = "idle-fixture", version = "0.5.1" }\n')
+        with patch.dict(os.environ, {"CARGO_HOME": str(self.root / "cargo-home")}):
+            generated = subprocess.run(["cargo", "generate-lockfile"], cwd=self.root,
+                                       capture_output=True, text=True, check=False)
+            self.assertEqual(generated.returncode, 0, generated.stderr)
+            initial = tomllib.loads((self.root / "Cargo.lock").read_text())
+            self.assertEqual(next(item["version"] for item in initial["package"]
+                                  if item["name"] == "idle-fixture"), "0.5.4")
+            manifest.write_text(manifest.read_text().replace('version = "0.5.1"',
+                                                            'version = ">=0.5.1, <1.0.0"'))
+            declared = manifest.read_bytes()
+            dependencies.update_cargo(self.root)
+        selected = tomllib.loads((self.root / "Cargo.lock").read_text())
+        self.assertEqual(next(item["version"] for item in selected["package"]
+                              if item["name"] == "idle-fixture"), "0.6.0")
+        self.assertEqual(manifest.read_bytes(), declared)
+
     def test_fresh_builds_adopt_releases_while_checks_and_packaging_reuse_their_selection(self):
         original = self.manifest.read_bytes()
         stale = copy.deepcopy(self.artifacts)
@@ -103,7 +203,7 @@ class BuildInputTests(unittest.TestCase):
         self.git("add", str(dependencies.PINNED))
         self.git("commit", "-qm", "record older release")
         pinned = (self.root / dependencies.PINNED).read_bytes()
-        versions = iter(("0.1.3", "0.1.4"))
+        versions = iter(("0.1.3", "0.2.0"))
 
         def update_lock(root):
             version = next(versions)
@@ -113,7 +213,7 @@ class BuildInputTests(unittest.TestCase):
         with patch.object(dependencies, "update_cargo", side_effect=update_lock) as update, \
                 patch.object(dependencies, "latest", return_value=self.selected) as latest:
             first = dependencies.ensure(self.root)
-            latest.return_value = dict(self.selected, tag="engine-v0.1.4",
+            latest.return_value = dict(self.selected, tag="engine-v0.2.0",
                                        sha256={platform: "b" * 64 for platform in dependencies.PLATFORMS})
             with patch.dict(os.environ, {dependencies.ENVIRONMENT: str(dependencies.record_path(self.root))}):
                 self.assertEqual(dependencies.ensure(self.root), first)
@@ -129,7 +229,7 @@ class BuildInputTests(unittest.TestCase):
         self.assertEqual(first["revision"], second["revision"])
         self.assertEqual(first["artifacts"], self.artifacts)
         self.assertEqual(second["artifacts"]["native-dependencies.json"]["dependencies"]["engine"]["tag"],
-                         "engine-v0.1.4")
+                         "engine-v0.2.0")
         self.assertNotEqual(first["cargo_lock"], second["cargo_lock"])
         self.assertNotEqual(dependencies.fingerprint(first), dependencies.fingerprint(second))
         self.assertEqual(self.manifest.read_bytes(), original)
@@ -149,7 +249,7 @@ class BuildInputTests(unittest.TestCase):
 
     def test_changed_requirements_cannot_reuse_a_previous_selection(self):
         dependencies.capture(self.root, self.artifacts)
-        self.manifest.write_text(self.manifest.read_text().replace("^0.1.2", "^0.2.0"))
+        self.manifest.write_text(self.manifest.read_text().replace(">=0.1.2, <1.0.0", ">=1.0.0, <2.0.0"))
         with self.assertRaisesRegex(ValueError, "requirements changed"):
             dependencies.restore(self.root)
 
@@ -184,7 +284,7 @@ class BuildInputTests(unittest.TestCase):
             dependencies.restore(self.root)
 
     def test_incompatible_or_incomplete_artifact_is_rejected(self):
-        for change in (lambda value: value.update(tag="engine-v0.2.0"),
+        for change in (lambda value: value.update(tag="engine-v1.0.0"),
                        lambda value: value["sha256"].pop("win32-x64"),
                        lambda value: value.update(repository="another/repository")):
             artifacts = copy.deepcopy(self.artifacts)
@@ -227,7 +327,7 @@ class BuildInputTests(unittest.TestCase):
 
     def test_locked_ci_rejects_stale_artifact_requirements(self):
         self.write_pins()
-        self.manifest.write_text(self.manifest.read_text().replace("^0.1.2", "^0.2.0"))
+        self.manifest.write_text(self.manifest.read_text().replace(">=0.1.2, <1.0.0", ">=1.0.0, <2.0.0"))
         with self.assertRaisesRegex(ValueError, "identity changed"):
             dependencies.locked(self.root)
 

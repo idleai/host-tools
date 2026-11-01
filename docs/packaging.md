@@ -7,9 +7,9 @@ archive checksums; [Cargo configuration](../.cargo/config.toml) registers it.
 ## Dependency selection
 
 Checks and builds need only this repository's source. The canonical
-`scripts/lint.sh` and `scripts/check.sh` select the latest compatible internal
-Cargo releases at the start. The committed `Cargo.lock` supplies the initial
-third-party selection. The
+`scripts/lint.sh` and `scripts/check.sh` select the latest internal Cargo
+releases within the declared major version at the start. The committed
+`Cargo.lock` supplies the initial third-party selection. The
 [native dependency manifest](../native-dependencies.json) declares compatible
 engine and exporter ranges; resolution requires complete platform bundles.
 
@@ -27,8 +27,12 @@ python3 scripts/release_dependencies.py run -- cargo build --workspace --locked
 ```
 
 `--locked` keeps later commands within that build on the resolved selection.
-Keep consumer minimum versions accurate when adopting a new API: `^0.1.2`
-accepts `0.1.3`; adopting `0.2.0` requires a manifest change.
+Internal dependencies use explicit ranges such as `>=0.5.1, <1.0.0`. Fresh builds
+can adopt `0.6.0` and later `0.x` releases automatically; `1.0.0` requires a
+manual major-version change. Keep the lower bound accurate when code needs a
+new API. Apply the same bounds to Cargo packages and release artifacts.
+Workspace path dependencies continue to use their local source, and third-party
+requirements retain their existing policy.
 
 The [Check latest released dependencies workflow](../.github/workflows/update-releases.yml)
 checks every six hours, or on manual request, and starts main CI when inputs
