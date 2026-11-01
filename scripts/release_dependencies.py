@@ -43,6 +43,15 @@ def matches(requirement, version):
     return minimum <= version < tuple(maximum)
 
 
+def archive_checksum(assets, filename):
+    request = urllib.request.Request(assets[filename + ".sha256"], headers={"User-Agent": "idle-release-resolver"})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        checksum, recorded_name = response.read().decode().strip().split()
+    if recorded_name != filename or not re.fullmatch(r"[0-9a-f]{64}", checksum):
+        raise ValueError(f"invalid release checksum: {filename}")
+    return checksum
+
+
 def latest(dependency, native):
     prefix = f"{dependency['package']}-v"
     records = subprocess.check_output([
@@ -59,21 +68,18 @@ def latest(dependency, native):
         if not matches(dependency["version"], version):
             continue
         assets = {asset["name"]: asset["browser_download_url"] for asset in release["assets"]}
-        filenames = {target: f"{release['tag_name']}-{target}.tar.gz" for target in PLATFORMS} if native else {
-            "source": f"{dependency['package']}-{value}.crate"}
+        filenames = {
+            target: f"{release['tag_name']}-{target}.tar.gz" for target in PLATFORMS
+            if all(f"{release['tag_name']}-{target}.tar.gz{suffix}" in assets for suffix in ("", ".sha256"))
+        } if native else {"source": f"{dependency['package']}-{value}.crate"}
+        if native and "linux-x64" not in filenames:
+            continue
         if all(name in assets and name + ".sha256" in assets for name in filenames.values()):
             candidates.append((version, release["tag_name"], assets, filenames))
     if not candidates:
         raise RuntimeError(f"no complete compatible release for {dependency['repository']}: {dependency['version']}")
     _, tag, assets, filenames = max(candidates, key=lambda candidate: candidate[0])
-    checksums = {}
-    for target, filename in filenames.items():
-        request = urllib.request.Request(assets[filename + ".sha256"], headers={"User-Agent": "idle-release-resolver"})
-        with urllib.request.urlopen(request, timeout=60) as response:
-            checksum, recorded_name = response.read().decode().strip().split()
-        if recorded_name != filename or not re.fullmatch(r"[0-9a-f]{64}", checksum):
-            raise ValueError(f"invalid release checksum: {filename}")
-        checksums[target] = checksum
+    checksums = {target: archive_checksum(assets, filename) for target, filename in filenames.items()}
     return dict(dependency, tag=tag, sha256=checksums if native else checksums["source"])
 
 
@@ -130,9 +136,10 @@ def read(root):
                 local_platform = dependency.get("local_platform")
                 if local_platform and (os.environ.get("IDLE_LOCAL_RELEASE_INPUTS") != "1" or local_platform not in PLATFORMS):
                     raise ValueError("local native bundles require an explicit integration run")
-                expected_platforms = {local_platform} if local_platform else set(PLATFORMS)
-                if set(checksums) != expected_platforms:
-                    raise ValueError("resolved native release is missing a platform")
+                valid_platforms = (set(checksums) == {local_platform}) if local_platform else (
+                    "linux-x64" in checksums and set(checksums) <= set(PLATFORMS))
+                if not valid_platforms:
+                    raise ValueError("resolved native release has invalid or missing platforms")
                 checksums = checksums.values()
             else:
                 checksums = [checksums]
@@ -144,6 +151,33 @@ def read(root):
 def restore(root):
     record = read(root)
     (root / "Cargo.lock").write_text(record["cargo_lock"], encoding="utf-8")
+    return record
+
+
+def expand_platforms(root):
+    """Add checksums for manual builds without changing any selected version."""
+    record = read(root)
+    for filename, document in record["artifacts"].items():
+        if not filename.startswith("native-"):
+            continue
+        for dependency in document["dependencies"].values():
+            if dependency.get("local_platform"):
+                raise ValueError("local integration bundles cannot be expanded into a release")
+            missing = set(PLATFORMS) - set(dependency["sha256"])
+            if not missing:
+                continue
+            repository, tag = dependency["repository"], dependency["tag"]
+            release = json.loads(command(root, "gh", "api", f"repos/{repository}/releases/tags/{tag}"))
+            if release["draft"] or release["prerelease"] or release["tag_name"] != tag:
+                raise ValueError(f"expected the published release {repository}@{tag}")
+            assets = {asset["name"]: asset["browser_download_url"] for asset in release["assets"]}
+            for target in sorted(missing):
+                archive = f"{tag}-{target}.tar.gz"
+                if not all(archive + suffix in assets for suffix in ("", ".sha256")):
+                    raise RuntimeError(f"build {repository}@{tag} for {target} with its manual full-platform workflow first")
+                dependency["sha256"][target] = archive_checksum(assets, archive)
+    # Write only after every dependency is available, preserving the original lockfile and revision.
+    record_path(root).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return record
 
 
@@ -220,11 +254,12 @@ def fingerprint(record):
 
 
 def main():
-    root = Path(__file__).resolve().parent.parent
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("resolve", "locked", "pin", "restore", "refresh", "verify", "run"), nargs="?", default="resolve")
+    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
+    parser.add_argument("command", choices=("resolve", "locked", "pin", "restore", "refresh", "verify", "expand-platforms", "run"), nargs="?", default="resolve")
     parser.add_argument("arguments", nargs=argparse.REMAINDER)
     args = parser.parse_args()
+    root = args.root.resolve()
     if args.command == "resolve":
         resolve(root)
     elif args.command == "locked":
@@ -237,6 +272,8 @@ def main():
         capture(root, json.loads(record_path(root).read_text(encoding="utf-8"))["artifacts"])
     elif args.command == "verify":
         ensure(root)
+    elif args.command == "expand-platforms":
+        expand_platforms(root)
     else:
         arguments = args.arguments[1:] if args.arguments[:1] == ["--"] else args.arguments
         if not arguments:
