@@ -19,7 +19,7 @@ fixtures = []
 [dependencies]
 idle-editor-capture = { registry = "idle-host-tools", version = "0.6.2", path = "../idle-editor-capture" }
 idle-history = { registry = "idle-host-tools", version = "0.6.2", path = "../idle-history" }
-editchain-store = { registry = "idle-editchain", version = "0.1.0" }
+editchain-store = { registry = "idle-editchain", version = ">=0.1.0, <1.0.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 blake3 = "1"
@@ -28,9 +28,9 @@ time = { version = "0.3", default-features = false, features = ["parsing"] }
 tempfile = "3"
 tokio = { version = "1", default-features = false, features = ["io-util", "macros", "process", "rt", "time"] }
 process-wrap = { version = "10", default-features = false, features = ["tokio1", "process-group", "job-object", "kill-on-drop"] }
-editchain-core = { registry = "idle-editchain", version = "0.1.0" }
+editchain-core = { registry = "idle-editchain", version = ">=0.1.0, <1.0.0" }
 
-editchain-engine = { registry = "idle-editchain", version = "0.1.0" }
+editchain-engine = { registry = "idle-editchain", version = ">=0.1.0, <1.0.0" }
 
 [dev-dependencies]
 proptest = "1"

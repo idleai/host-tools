@@ -14,9 +14,9 @@ categories = ["development-tools"]
 [dependencies]
 idle-host-io = { registry = "idle-host-tools", version = "0.6.2", path = "../idle-host-io" }
 idle-history = { registry = "idle-host-tools", version = "0.6.2", path = "../idle-history" }
-editchain-core = { registry = "idle-editchain", version = "0.1.0" }
-editchain-store = { registry = "idle-editchain", version = "0.1.0" }
-editchain-git = { registry = "idle-editchain", version = "0.1.0" }
+editchain-core = { registry = "idle-editchain", version = ">=0.1.0, <1.0.0" }
+editchain-store = { registry = "idle-editchain", version = ">=0.1.0, <1.0.0" }
+editchain-git = { registry = "idle-editchain", version = ">=0.1.0, <1.0.0" }
 blake3 = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["raw_value"] }
