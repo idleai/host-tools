@@ -138,6 +138,10 @@ fn read_query(binding: &Binding, request: &QueryRequest) -> idle_history::query:
         return crate::git::document(binding, repository, oid)
             .map_err(idle_history::query::Error::new);
     }
+    if let idle_history::query::QueryAction::CommitFile { change } = &request.query.action {
+        return crate::git::files::document(binding, change)
+            .map_err(idle_history::query::Error::new);
+    }
     if let idle_history::query::QueryAction::Timeline(request) = &request.query.action {
         return crate::timeline::execute(binding, request)
             .map(|result| idle_history::query::QueryResult::Timeline(Box::new(result)))

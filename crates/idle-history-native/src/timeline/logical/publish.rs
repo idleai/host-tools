@@ -127,6 +127,12 @@ fn block(id: &str, source: &Fact, first: Option<&Fact>, outputs: &[&Fact]) -> Fa
         })
         .unwrap_or(source);
     let mut fact = content.clone();
+    if fact.row.presentation.file_path.is_none() {
+        fact.row
+            .presentation
+            .file_path
+            .clone_from(&source.row.presentation.file_path);
+    }
     fact.row.occurrence = id.into();
     fact.row.item = blake3::hash(id.as_bytes()).to_hex().to_string();
     fact.row.records = std::iter::once(source)
@@ -140,8 +146,26 @@ fn block(id: &str, source: &Fact, first: Option<&Fact>, outputs: &[&Fact]) -> Fa
         && !source.row.preview.is_empty()
     {
         fact.row.title.clone_from(&source.row.title);
-        fact.row.tags.clone_from(&source.row.tags);
+        if fact.row.presentation.file {
+            for tag in &source.row.tags {
+                if !fact.row.tags.contains(tag) {
+                    fact.row.tags.push(tag.clone());
+                }
+            }
+        } else {
+            fact.row.tags.clone_from(&source.row.tags);
+        }
         fact.row.preview.clone_from(&source.row.preview);
+        fact.row
+            .presentation
+            .label
+            .clone_from(&source.row.presentation.label);
+        if !source.row.presentation.title.is_empty() {
+            fact.row
+                .presentation
+                .title
+                .clone_from(&source.row.presentation.title);
+        }
     }
     fact.order_time = first.and_then(|fact| fact.order_time.or(fact.row.timestamp));
     fact.row.timestamp = source.row.timestamp.or(content.row.timestamp);

@@ -39,12 +39,57 @@ pub struct Row {
     pub open: OpenTarget,
     /// Why activation falls back to operation JSON, when applicable.
     pub unavailable: Option<String>,
+    /// Display roles resolved from the recorded operation.
+    #[serde(default)]
+    pub presentation: Presentation,
+    /// Independent disclosure of attached record or file rows.
+    #[serde(default)]
+    pub details: Option<Details>,
     /// Group summary or membership.
     pub group: Option<Group>,
     /// Exact semantic attachments; unresolved targets remain explicit.
     pub relationships: Vec<Relationship>,
     /// Coalesced coverage, including rails with both endpoints outside a window.
     pub graph: Geometry,
+}
+
+/// Compact row presentation; source content and exact destinations stay separate.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, facet::Facet)]
+#[expect(
+    clippy::unsafe_derive_deserialize,
+    reason = "Facet reflection adds no safety invariants to these wire fields"
+)]
+#[facet(rename = "TimelinePresentation")]
+#[serde(default)]
+pub struct Presentation {
+    /// Activity classification, including human versus agent conversation.
+    pub label: String,
+    /// Optional content heading such as the recorded tool name.
+    pub title: String,
+    /// Session caption at an actual graph endpoint.
+    pub session_label: String,
+    /// The physical anchor currently displays its folded task summary.
+    pub task_summary: bool,
+    /// Whether the row represents an individually actionable file.
+    pub file: bool,
+    /// Recorded path used to display an actionable file's name and directory.
+    pub file_path: Option<String>,
+    /// Physical parent of an inline detail; details never own a graph node.
+    pub parent: Option<String>,
+}
+
+/// Attached details have their own disclosure, independent of a task group.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, facet::Facet)]
+#[expect(
+    clippy::unsafe_derive_deserialize,
+    reason = "Facet reflection adds no safety invariants to these wire fields"
+)]
+#[facet(rename = "TimelineDetails")]
+pub struct Details {
+    /// Number of attached rows, when known without reading their content.
+    pub count: Option<u64>,
+    /// Effective item-detail disclosure in this view.
+    pub expanded: bool,
 }
 
 /// Safe connected task interval with explicit entry and exit attachments.

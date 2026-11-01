@@ -42,10 +42,26 @@ pub(super) fn apply(fact: &mut Fact, operation: &Operation, stored: &Op) {
         Kind::Tool(_) => {
             let name = fact.row.title.clone();
             fact.row.title = tool_kind(&name).into();
-            fact.row.tags.push(name);
+            fact.row.presentation.title = name;
             fact.row.preview = text::description(&fact.row.preview);
         }
         Kind::File(file) => {
+            fact.row.presentation.file = true;
+            fact.row.presentation.file_path =
+                (!fact.row.preview.is_empty()).then(|| fact.row.preview.clone());
+            fact.row.tags.clear();
+            let status = match file.action {
+                FileAction::Create => Some("A"),
+                FileAction::Delete => Some("D"),
+                FileAction::Rename => Some("R"),
+                FileAction::Change | FileAction::Save => Some("M"),
+                FileAction::Read
+                | FileAction::Open
+                | FileAction::Close
+                | FileAction::View
+                | FileAction::Snapshot => None,
+            };
+            fact.row.tags.extend(status.map(str::to_owned));
             fact.row.title = match file.action {
                 FileAction::Read => "read",
                 FileAction::Create
@@ -101,6 +117,35 @@ pub(super) fn apply(fact: &mut Fact, operation: &Operation, stored: &Op) {
         }
         Kind::Author(_) | Kind::Session(_) | Kind::Turn(_) | Kind::Link(_) => {}
     }
+    if fact.row.presentation.label.is_empty() {
+        fact.row.presentation.label = match fact.row.title.as_str() {
+            "message" | "summary" if stored.tags.matches_any(Tags::HUMAN) => "user",
+            "message" | "summary" => "agent",
+            "run" | "result" => "tooluse",
+            "read" | "open" | "close" => "explore",
+            "edit" | "file" => "change",
+            "system" | "note" | "session" => "meta",
+            title => title,
+        }
+        .into();
+    }
+    fact.row.presentation.title = idle_history::ContentText::tool_label(
+        std::mem::take(&mut fact.row.presentation.title),
+        true,
+    )
+    .text;
+    let outcome = match fact.outcome {
+        editchain_core::activity::Status::Failure => Some("failed"),
+        editchain_core::activity::Status::Cancelled => Some("cancelled"),
+        editchain_core::activity::Status::Success | editchain_core::activity::Status::Unknown => {
+            None
+        }
+    };
+    if let Some(outcome) = outcome
+        && !fact.row.tags.iter().any(|tag| tag == outcome)
+    {
+        fact.row.tags.push(outcome.into());
+    }
 }
 
 fn original(fact: &mut Fact) {
@@ -119,6 +164,11 @@ fn original(fact: &mut Fact) {
         .get("type")
         .and_then(Value::as_str)
         .unwrap_or_default();
+    if matches!(category, "user_message")
+        || payload.get("role").and_then(Value::as_str) == Some("user")
+    {
+        fact.row.presentation.label = "user".into();
+    }
     fact.visibility = if category == "item_completed"
         || matches!(
             outer,
@@ -150,7 +200,9 @@ fn original(fact: &mut Fact) {
     .into();
     if let Some(name) = payload.get("name").and_then(Value::as_str) {
         fact.row.title = tool_kind(name).into();
-        fact.row.tags.push(name.into());
+        fact.row.presentation.title = name.into();
+    } else if matches!(category, "function_call_output" | "custom_tool_call_output") {
+        fact.row.presentation.title = "Tool result".into();
     }
     fact.row.preview = text::value(payload).unwrap_or_else(|| {
         if category.is_empty() {
@@ -179,7 +231,21 @@ fn human(fact: &mut Fact, value: &Value) -> bool {
         HumanWorkKind::Gap => "gap",
     }
     .into();
+    fact.row.presentation.title = match record.kind {
+        HumanWorkKind::Read => "Read",
+        HumanWorkKind::EditorOpened => "Opened",
+        HumanWorkKind::EditorClosed => "Closed",
+        HumanWorkKind::Edit
+        | HumanWorkKind::ObservedEdit
+        | HumanWorkKind::Exposure
+        | HumanWorkKind::Gap => "",
+    }
+    .into();
     fact.row.preview = record.summary;
+    fact.row.presentation.file_path.clone_from(&record.path);
+    if record.kind == HumanWorkKind::ObservedEdit {
+        fact.row.tags.push("unattributed".into());
+    }
     fact.visibility = if record.kind == HumanWorkKind::Exposure {
         Visibility::Supporting
     } else {
@@ -201,9 +267,6 @@ fn human(fact: &mut Fact, value: &Value) -> bool {
         fact.human_edit = record
             .edit_group
             .map(|id| format!("{}:{id}", record.session));
-    }
-    if let Some(name) = record.user_name {
-        fact.row.tags.push(name);
     }
     true
 }

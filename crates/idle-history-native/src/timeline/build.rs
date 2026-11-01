@@ -236,15 +236,15 @@ pub(super) fn advance(
                 build.processed = build.processed.saturating_add(1);
             }
             build.snapshot.accepted.clone_from(&changes.next);
-            build.phase = if changes.complete {
+            if changes.complete {
                 let keys: Vec<_> = build.relation_dirty.iter().cloned().collect();
                 logical::schedule(&mut build.snapshot, &keys);
-                Phase::MaterializeChanges
+                super::git::changed(build);
             } else {
-                Phase::Changes {
+                build.phase = Phase::Changes {
                     after: changes.next,
-                }
-            };
+                };
+            }
         }
         Phase::Relations => {
             let keys: Vec<_> = build.relation_dirty.iter().take(BATCH).cloned().collect();

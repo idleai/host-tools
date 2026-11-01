@@ -25,24 +25,47 @@ pub(super) fn apply(fact: &mut Fact, value: &Value) -> bool {
         .is_some_and(|code| code != 0)
         || item.pointer("/result/isError").and_then(Value::as_bool) == Some(true)
     {
-        fact.outcome = editchain_core::activity::Status::Failure;
+        fact.outcome = if matches!(
+            status.to_ascii_lowercase().as_str(),
+            "cancelled" | "interrupted"
+        ) {
+            editchain_core::activity::Status::Cancelled
+        } else {
+            editchain_core::activity::Status::Failure
+        };
     }
     fact.protected = matches!(
         status.to_ascii_lowercase().as_str(),
         "inprogress" | "in_progress" | "running"
     );
     let (title, preview) = match kind {
-        "AgentMessage" | "UserMessage" => ("message", field(item, &["content", "text"])),
+        "AgentMessage" | "UserMessage" => {
+            fact.row.presentation.label = if kind == "UserMessage" {
+                "user"
+            } else {
+                "agent"
+            }
+            .into();
+            ("message", field(item, &["content", "text"]))
+        }
         "Reasoning" => ("plan", field(item, &["summary_text", "raw_content"])),
         "Plan" => ("plan", field(item, &["text", "plan", "explanation"])),
-        "CommandExecution" => ("run", command(item, fact.protected)),
+        "CommandExecution" => {
+            fact.row.presentation.title = if fact.protected {
+                "Command"
+            } else {
+                "Command output"
+            }
+            .into();
+            ("run", command(item, fact.protected))
+        }
         "McpToolCall" | "DynamicToolCall" => {
             let name = item
                 .get("tool")
                 .or_else(|| item.get("name"))
                 .and_then(Value::as_str)
                 .unwrap_or("tool");
-            fact.row.tags.push(name.into());
+            fact.row.presentation.title = name.into();
             (
                 tool_kind(name),
                 if fact.protected {
@@ -52,7 +75,13 @@ pub(super) fn apply(fact: &mut Fact, value: &Value) -> bool {
                 },
             )
         }
-        "FileChange" => ("edit", changes(item)),
+        "FileChange" => {
+            let paths = changes(item);
+            if paths.len() == 1 {
+                fact.row.presentation.file_path = paths.first().cloned();
+            }
+            ("edit", paths.join(", "))
+        }
         "SubAgentActivity" => ("coordinate", field(item, &["kind", "agent_path"])),
         _ => return false,
     };
@@ -63,9 +92,6 @@ pub(super) fn apply(fact: &mut Fact, value: &Value) -> bool {
             fact.source.map_or(0, |source| source.seq),
             super::caption(&fact.row.preview),
         ));
-    }
-    if fact.failed() {
-        fact.row.tags.push("failed".into());
     }
     true
 }
@@ -106,18 +132,18 @@ fn field(item: &Value, fields: &[&str]) -> String {
         .unwrap_or_default()
 }
 
-fn changes(item: &Value) -> String {
+fn changes(item: &Value) -> Vec<String> {
     let Some(changes) = item.get("changes") else {
-        return String::new();
+        return Vec::new();
     };
     if let Some(changes) = changes.as_object() {
-        return changes.keys().cloned().collect::<Vec<_>>().join(", ");
+        return changes.keys().cloned().collect();
     }
     changes
         .as_array()
         .into_iter()
         .flatten()
         .filter_map(|change| change.get("path").and_then(Value::as_str))
-        .collect::<Vec<_>>()
-        .join(", ")
+        .map(str::to_owned)
+        .collect()
 }

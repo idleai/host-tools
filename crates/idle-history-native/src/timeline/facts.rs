@@ -50,6 +50,8 @@ pub(super) fn read(
             timestamp: operation.time_ms,
             open: OpenTarget::OperationJson,
             unavailable: None,
+            presentation: idle_history::timeline::Presentation::default(),
+            details: None,
             group: None,
             relationships: Vec::new(),
             graph: idle_history::timeline::Geometry::default(),

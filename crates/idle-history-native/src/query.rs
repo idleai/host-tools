@@ -89,10 +89,12 @@ fn execute_read(queries: &ChainQueries, action: &QueryAction) -> io::Result<Quer
         )),
         QueryAction::Reconcile(request) => reconciliation::capture(queries, request)
             .map(|snapshot| QueryResult::Reconciled(Box::new(snapshot))),
-        QueryAction::Timeline(_) | QueryAction::Commit { .. } => Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "This query requires a bound native history service",
-        )),
+        QueryAction::Timeline(_) | QueryAction::Commit { .. } | QueryAction::CommitFile { .. } => {
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "This query requires a bound native history service",
+            ))
+        }
     }
 }
 

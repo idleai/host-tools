@@ -35,6 +35,14 @@ pub(super) fn fact(commit: &GitCommitEntity, refs: Vec<String>) -> (Fact, String
                 .and_then(|value| value.checked_mul(1000)),
             open: OpenTarget::Diff,
             unavailable: None,
+            presentation: idle_history::timeline::Presentation {
+                label: "git".into(),
+                ..idle_history::timeline::Presentation::default()
+            },
+            details: Some(idle_history::timeline::Details {
+                count: None,
+                expanded: false,
+            }),
             group: None,
             relationships: Vec::new(),
             graph: Geometry::default(),

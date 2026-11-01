@@ -12,7 +12,7 @@ use idle_history_graph::live::{GraphNode, LiveGraph, Order};
 use serde::{Deserialize, Serialize};
 
 /// Algorithm identity is separate from the transport contract.
-pub(super) const INDEX_VERSION: u32 = 8;
+pub(super) const INDEX_VERSION: u32 = 9;
 pub(super) const BATCH: usize = 500;
 pub(super) const MAX_GROUP: usize = 128;
 

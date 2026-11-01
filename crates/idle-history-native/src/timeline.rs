@@ -4,6 +4,7 @@
 //! Copy-on-write pages keep the previous complete revision readable during builds.
 
 mod build;
+mod details;
 mod facts;
 mod git;
 mod groups;

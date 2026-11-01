@@ -5,13 +5,15 @@
 
 mod rows;
 pub use rows::*;
+mod files;
+pub use files::CommitFile;
 
 use serde::{Deserialize, Serialize};
 
 use crate::query::{Filter, RecordRef};
 
 /// Timeline contract with exact recorded and live Git destinations.
-pub const VERSION: u32 = 2;
+pub const VERSION: u32 = 3;
 /// Ordinary window size.
 pub const DEFAULT_LIMIT: u32 = 200;
 /// Largest allowed window or match page.
@@ -74,6 +76,8 @@ pub enum Target {
         /// Complete SHA-1 or SHA-256 commit hash.
         oid: String,
     },
+    /// Exact first-parent file change in a repository-qualified commit.
+    CommitFile(Box<CommitFile>),
 }
 
 impl Target {
@@ -82,7 +86,7 @@ impl Target {
     pub const fn record(&self) -> Option<&Address> {
         match self {
             Self::Record(address) => Some(address),
-            Self::Commit { .. } => None,
+            Self::Commit { .. } | Self::CommitFile(_) => None,
         }
     }
 
@@ -104,6 +108,7 @@ impl Target {
             Self::Commit { repository, oid } => {
                 repository.parse::<u64>().is_ok() && matches!(oid.len(), 40 | 64) && hex(oid)
             }
+            Self::CommitFile(change) => change.is_valid(),
         }
     }
 }
@@ -150,6 +155,12 @@ pub struct View {
     pub filter: Filter,
     /// Manual or temporary choices, independent for each client composition.
     pub disclosures: Vec<Disclosure>,
+    /// Physical activities whose attached record or file rows are open.
+    #[serde(default)]
+    pub details: Vec<String>,
+    /// Individually revealed activities, including matches inside folded tasks.
+    #[serde(default)]
+    pub exposed: Vec<String>,
 }
 
 /// Starting point for a bounded window.
