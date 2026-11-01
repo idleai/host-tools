@@ -87,7 +87,9 @@ async fn start(
         "helper negotiates its protocol before loading storage"
     )?;
     write_frame(&mut client, configuration).await?;
-    let ready = if configuration.get("version") == Some(&json!(2)) {
+    let ready = if configuration.get("version") == Some(&json!(3)) {
+        json!({"ready":true,"runner_authorization":1,"shared_sessions":1})
+    } else if configuration.get("version") == Some(&json!(2)) {
         json!({"ready":true,"runner_authorization":1})
     } else {
         json!({"ready":true})

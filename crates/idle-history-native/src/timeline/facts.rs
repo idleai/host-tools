@@ -201,7 +201,11 @@ pub(super) fn read(
             fact.protected = message.outcome.is_some();
         }
         Kind::Tool(tool) => {
-            fact.attempt = Some(tool.attempt.to_string());
+            // Imported calls carry their own attempt IDs inside a shared turn.
+            // Keep those calls in the turn's disclosure; direct native streams
+            // still retain independent attempt boundaries.
+            let imported = operation.original.is_some();
+            fact.attempt = (!imported).then(|| tool.attempt.to_string());
             text(Field::ToolName).clone_into(&mut fact.row.title);
             if fact.row.title.is_empty() {
                 fact.row.title = "Tool".into();
@@ -218,7 +222,7 @@ pub(super) fn read(
                 .map_or(editchain_core::activity::Status::Unknown, |outcome| {
                     outcome.status
                 });
-            fact.protected = matches!(tool.stage, Stage::Started | Stage::Finished)
+            fact.protected = (!imported && matches!(tool.stage, Stage::Started | Stage::Finished))
                 || tool.outcome.as_ref().is_some_and(|outcome| {
                     matches!(
                         outcome.status,

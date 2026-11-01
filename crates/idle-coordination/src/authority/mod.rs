@@ -10,6 +10,7 @@ mod repository;
 mod resources;
 pub(crate) mod runner;
 pub mod runtime_transfer;
+mod sessions;
 mod state;
 pub(crate) mod validation;
 
@@ -194,8 +195,13 @@ impl Authority {
             return Ok(ApiResult::Failure(failure(ErrorCode::RequestExpired)));
         }
         let mut next = self.state.clone();
-        next.receipts
-            .retain(|stored| stored.request.context.expires_at.0 > now);
+        next.receipts.retain(|stored| {
+            stored.request.context.expires_at.0 > now
+                || self
+                    .state
+                    .session_journal
+                    .retains(&stored.request.context.key())
+        });
         if next.receipts.len() >= MAX_RECEIPTS {
             return Ok(ApiResult::Failure(failure(ErrorCode::RateLimited)));
         }

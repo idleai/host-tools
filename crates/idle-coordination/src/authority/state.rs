@@ -58,6 +58,8 @@ pub(super) struct State {
     pub runtime_transfer: Option<Box<super::runtime_transfer::Transfer>>,
     #[serde(default)]
     pub runtime_owner: Option<Box<super::runtime_transfer::Owner>>,
+    #[serde(default)]
+    pub session_journal: super::sessions::Journal,
 }
 
 impl State {
@@ -103,6 +105,7 @@ impl State {
             resource_revisions: super::resources::ResourceRevisions::default(),
             runtime_transfer: None,
             runtime_owner: None,
+            session_journal: super::sessions::Journal::default(),
         })
     }
 

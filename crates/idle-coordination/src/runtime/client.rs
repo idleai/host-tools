@@ -454,6 +454,7 @@ impl Client {
         if !matches!(
             method,
             "thread/start"
+                | "idle/session/call"
                 | "thread/resume"
                 | "thread/fork"
                 | "thread/read"

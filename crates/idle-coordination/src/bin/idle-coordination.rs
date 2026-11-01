@@ -60,12 +60,12 @@ async fn run(configuration: Configuration) -> Result<()> {
         shutdown_signal().await;
         interrupted.cancel();
     });
-    let result = serve_configuration(
+    let result = Box::pin(serve_configuration(
         configuration,
         tokio::io::stdin(),
         tokio::io::stdout(),
         &cancel,
-    )
+    ))
     .await;
     signals.abort();
     result
