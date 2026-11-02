@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/idleai/host-tools/compare/idle-host-v0.6.3...idle-host-v0.7.0) - 2026-11-02
+
+### Added
+
+- persist shared session inputs and restore imported task groups ([#42](https://github.com/idleai/host-tools/pull/42))
+
 ## [0.5.4](https://github.com/idleai/host-tools/compare/idle-host-v0.5.3...idle-host-v0.5.4) - 2026-10-28
 
 ### Other

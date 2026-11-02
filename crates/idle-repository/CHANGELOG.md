@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/idleai/host-tools/compare/idle-repository-v0.6.3...idle-repository-v0.7.0) - 2026-11-02
+
+### Other
+
+- update Cargo.lock dependencies
+
 ## [0.6.3](https://github.com/idleai/host-tools/compare/idle-repository-v0.6.2...idle-repository-v0.6.3) - 2026-11-01
 
 ### Other
