@@ -66,6 +66,34 @@ pub enum Request {
         /// Whether the frozen execution policy permits filesystem writes.
         write: bool,
     },
+    /// Authenticated contributor operation, dispatched by the daemon only.
+    Session {
+        /// Bounded session call with its original request identity.
+        operation: Box<super::sessions::RequestBody>,
+        /// Authenticated invitation and required execution permissions.
+        participant: super::sessions::Participant,
+    },
+    /// Runtime-confirmed progress, inaccessible through the public session call.
+    SessionWork {
+        /// Native allocation or input execution update.
+        work: super::sessions::Work,
+    },
+    /// Recheck the attributed input author independently from the runner owner.
+    AuthorizeParticipant {
+        /// Existing native runner identity.
+        session_id: String,
+        /// Author retained by the durable input queue.
+        contributor_id: String,
+        /// Whether execution requires write permission.
+        write: bool,
+    },
+    /// Check observation rights without granting execution permission.
+    ObserveRunner {
+        /// Native session being read.
+        session_id: String,
+        /// Contributor authenticated by the daemon grant.
+        contributor_id: String,
+    },
 }
 
 #[derive(Deserialize)]
@@ -109,6 +137,7 @@ struct Host {
     authority: Option<Authority>,
     upload: Option<Upload>,
     runtime: Option<RuntimeBinding>,
+    shared_sessions: bool,
 }
 
 /// Hold one authority independently of clients, releasing its lock on daemon EOF.
@@ -125,8 +154,8 @@ pub async fn serve_authority(
         () = cancel.cancelled() => return Ok(()),
         start = framing::read(&mut input) => start?.ok_or_else(framing::invalid)?,
     };
-    if !matches!(start.version, 1 | 2)
-        || (start.version == 2) != start.runtime_id.is_some()
+    if !matches!(start.version, 1..=3)
+        || (start.version >= 2) != start.runtime_id.is_some()
         || !start.state_directory.is_absolute()
         || !start.destination.checkout_root.is_absolute()
     {
@@ -155,8 +184,11 @@ pub async fn serve_authority(
         authority,
         upload: None,
         runtime,
+        shared_sessions: start.version >= 3,
     };
-    let ready = if start.version == 2 {
+    let ready = if start.version == 3 {
+        json!({"ready":true,"runner_authorization":1,"shared_sessions":1})
+    } else if start.version == 2 {
         json!({"ready":true,"runner_authorization":1})
     } else {
         json!({"ready":true})
@@ -188,18 +220,89 @@ pub async fn serve_authority(
 
 impl Host {
     fn call(&mut self, client_id: &str, source: Source, request: Request) -> Result<Value> {
+        if !self.shared_sessions
+            && matches!(
+                &request,
+                Request::Session { .. }
+                    | Request::SessionWork { .. }
+                    | Request::AuthorizeParticipant { .. }
+                    | Request::ObserveRunner { .. }
+            )
+        {
+            return Err(Error::Version);
+        }
         if let Some(authority) = &self.authority
             && authority.runtime_owner()?.1.contributor_id.0 != client_id
-            && !(source == Source::Daemon && matches!(&request, Request::AuthorizeRunner { .. }))
+            && !(source == Source::Daemon
+                && matches!(
+                    &request,
+                    Request::AuthorizeRunner { .. }
+                        | Request::RegisterRunner { .. }
+                        | Request::Session { .. }
+                        | Request::SessionWork { .. }
+                        | Request::AuthorizeParticipant { .. }
+                        | Request::ObserveRunner { .. }
+                ))
         {
             return Err(Error::Forbidden);
         }
         match request {
+            Request::ObserveRunner {
+                session_id,
+                contributor_id,
+            } => {
+                let principal = self.runtime_principal(source)?;
+                self.authority
+                    .as_ref()
+                    .ok_or(Error::Conflict)?
+                    .observe_runner(
+                        &principal,
+                        contributor_id.as_str().into(),
+                        &session_id.as_str().into(),
+                    )?;
+                Ok(Value::Null)
+            }
+            Request::AuthorizeParticipant {
+                session_id,
+                contributor_id,
+                write,
+            } => {
+                let principal = self.runtime_principal(source)?;
+                Ok(serde_json::to_value(
+                    self.authority
+                        .as_mut()
+                        .ok_or(Error::Conflict)?
+                        .authorize_runner(
+                            &principal,
+                            contributor_id.as_str().into(),
+                            &session_id.as_str().into(),
+                            write,
+                        )?,
+                )?)
+            }
+            Request::Session {
+                operation,
+                participant,
+            } => {
+                let principal = self.runtime_principal(source)?;
+                self.authority
+                    .as_mut()
+                    .ok_or(Error::Conflict)?
+                    .session_call(&principal, client_id, *operation, participant)
+            }
+            Request::SessionWork { work } => {
+                let principal = self.runtime_principal(source)?;
+                self.authority
+                    .as_mut()
+                    .ok_or(Error::Conflict)?
+                    .session_work(&principal, work)
+            }
             Request::RegisterRunner { session_id, parent } => {
                 let principal = self.runtime_principal(source)?;
                 let authority = self.authority.as_mut().ok_or(Error::Conflict)?;
                 authority.register_runner(
                     &principal,
+                    client_id,
                     session_id.as_str().into(),
                     parent.as_deref().map(Into::into),
                 )?;

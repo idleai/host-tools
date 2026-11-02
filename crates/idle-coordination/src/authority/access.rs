@@ -59,6 +59,18 @@ impl State {
         if self.resource_owner(scope) == Some(contributor) {
             return true;
         }
+        self.granted(contributor, scope, now)
+    }
+
+    pub(super) fn granted(
+        &self,
+        contributor: &ContributorId,
+        scope: &GrantScope,
+        now: u64,
+    ) -> bool {
+        if self.member(contributor).is_err() || !nonempty(scope) {
+            return false;
+        }
         // Each permission must have a current grant; independent grants can cover
         // distinct actions on this same resource without authorizing other kinds.
         match scope {

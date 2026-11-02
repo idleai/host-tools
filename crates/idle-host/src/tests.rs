@@ -45,7 +45,8 @@ impl Client {
                 "repository.local",
                 "runtime.workspace",
                 "coordination.runtime-owner",
-                "runtime.runners"
+                "runtime.runners",
+                "runtime.shared-sessions"
             ])),
             "optional repository and runtime reads are advertised before use",
         )?;

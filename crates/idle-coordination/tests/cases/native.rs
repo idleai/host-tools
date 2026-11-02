@@ -537,7 +537,13 @@ async fn startup_cleanup_can_request_host_credentials_before_the_first_service_r
     let (mut host, native) = tokio::io::duplex(65_536);
     let (reader, writer) = tokio::io::split(native);
     let serving = tokio::spawn(async move {
-        serve_configuration(config, reader, writer, &CancellationToken::new()).await
+        Box::pin(serve_configuration(
+            config,
+            reader,
+            writer,
+            &CancellationToken::new(),
+        ))
+        .await
     });
     write_frame(
         &mut host,

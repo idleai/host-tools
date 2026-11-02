@@ -24,6 +24,7 @@ macro_rules! equal {
 mod checkpoint;
 mod folded_routes;
 mod git;
+mod imported_tasks;
 mod legacy;
 mod provider;
 mod records;

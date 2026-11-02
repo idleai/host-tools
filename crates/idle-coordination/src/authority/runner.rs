@@ -4,7 +4,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use idle_protocol::v1::{
     ApiVersion, Change, WriteCondition,
     api::Request,
-    grants::{ComputePermission, GrantScope, SessionPermission},
+    grants::{ComputePermission, GrantCommand, GrantScope, SessionPermission},
     identity::{ContributorId, RequestContext, SessionId, Timestamp},
     resources::{Availability, ComputeHost, ConnectionRoute, Health, HostCapability},
     sessions::{RuntimeBinding, Session, SessionKind},
@@ -25,18 +25,48 @@ pub(crate) struct RunnerAuthorization {
 }
 
 impl Authority {
+    pub(crate) fn observe_runner(
+        &self,
+        principal: &Principal,
+        contributor_id: ContributorId,
+        session_id: &SessionId,
+    ) -> Result<()> {
+        let runtime = self.runner_runtime(principal)?;
+        if self
+            .state
+            .sessions
+            .get(&session_id.0)
+            .is_none_or(|record| record.value.runtime != runtime)
+            || !self.check_access(
+                principal,
+                &AccessCheck {
+                    contributor_id,
+                    scope: GrantScope::Session {
+                        session_id: session_id.clone(),
+                        permissions: vec![SessionPermission::Observe],
+                    },
+                },
+            )?
+        {
+            return Err(Error::Forbidden);
+        }
+        Ok(())
+    }
+
     pub(crate) fn register_runner(
         &mut self,
         principal: &Principal,
+        client_id: &str,
         session_id: SessionId,
         parent: Option<SessionId>,
     ) -> Result<()> {
         let runtime = self.runner_runtime(principal)?;
         self.refresh_repository()?;
         let now = self.now()?;
+        let owner = self.runner_owner(client_id, &session_id)?;
         let host = self.state.hosts.get(&runtime.host_id.0);
         let session = self.state.sessions.get(&session_id.0);
-        let operations = [
+        let mut operations = vec![
             Mutation::Host(Change {
                 expected: host.map_or(WriteCondition::Absent, |record| {
                     WriteCondition::Revision(record.revision)
@@ -64,8 +94,8 @@ impl Authority {
                     WriteCondition::Revision(record.revision)
                 }),
                 value: Session {
-                    id: session_id,
-                    owner: principal.contributor.contributor_id.clone(),
+                    id: session_id.clone(),
+                    owner: owner.clone(),
                     title: session.map_or_else(
                         || "Workspace runner".into(),
                         |session| session.value.title.clone(),
@@ -76,15 +106,32 @@ impl Authority {
                 },
             }),
         ];
+        let grant_id = format!("runner-owner:{}", session_id.0);
+        if !self.state.grants.contains_key(&grant_id) {
+            operations.push(Mutation::Grant(GrantCommand::Issue {
+                grant_id: grant_id.as_str().into(),
+                grantee: owner,
+                scope: GrantScope::Session {
+                    session_id,
+                    permissions: vec![SessionPermission::Observe, SessionPermission::SubmitInput],
+                },
+                expires_at: None,
+            }));
+        }
         let mut next = self.state.clone();
         // Reuse native metadata validation and revision checks in one durable commit.
         // Publication is not an acknowledgement of thread creation or execution.
         for body in operations {
+            let author = if matches!(&body, Mutation::Host(_)) {
+                principal.clone()
+            } else {
+                self.session_principal(client_id)?
+            };
             let request = Request {
                 api_version: ApiVersion::V1,
                 context: RequestContext {
                     workspace_id: next.workspace.value.id.clone(),
-                    contributor: principal.contributor.clone(),
+                    contributor: author.contributor.clone(),
                     request_id: uuid::Uuid::new_v4().to_string().as_str().into(),
                     expires_at: Timestamp(now.saturating_add(60_000)),
                 },
@@ -92,7 +139,7 @@ impl Authority {
                 body,
             };
             let (_value, notice) = next
-                .apply(principal, &request, now)
+                .apply(&author, &request, now)
                 .map_err(|_error| Error::Forbidden)?;
             next.record_change(notice)?;
         }
@@ -114,6 +161,16 @@ impl Authority {
             .get(&session_id.0)
             .ok_or(Error::Forbidden)?;
         if session.value.kind != SessionKind::Runner || session.value.runtime != runtime {
+            return Err(Error::Forbidden);
+        }
+        if !self.state.granted(
+            &contributor_id,
+            &GrantScope::Session {
+                session_id: session_id.clone(),
+                permissions: vec![SessionPermission::SubmitInput],
+            },
+            self.now()?,
+        ) {
             return Err(Error::Forbidden);
         }
         let mut permissions = vec![
@@ -153,7 +210,7 @@ impl Authority {
         })
     }
 
-    fn runner_runtime(&self, principal: &Principal) -> Result<RuntimeBinding> {
+    pub(super) fn runner_runtime(&self, principal: &Principal) -> Result<RuntimeBinding> {
         self.healthy()?;
         let (receipt, owner) = self.runtime_owner()?;
         let runtime = principal.runtime.as_ref().ok_or(Error::Forbidden)?;

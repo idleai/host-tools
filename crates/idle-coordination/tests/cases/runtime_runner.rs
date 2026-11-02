@@ -9,6 +9,9 @@ use idle_protocol::v1::{
 
 use super::*;
 
+#[path = "runtime_sessions.rs"]
+mod sessions;
+
 fn configuration(fixture: &Fixture, runtime: &str) -> Result<Value, Error> {
     let mut configuration = fixture.configuration.clone();
     let fields = configuration.as_object_mut().ok_or(Error::Invalid)?;

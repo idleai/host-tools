@@ -200,12 +200,12 @@ async fn piped(
     let serving = async {
         match binding {
             Binding::Coordination(configuration) => {
-                idle_coordination::service::serve_configuration(
+                Box::pin(idle_coordination::service::serve_configuration(
                     *configuration,
                     reader,
                     writer,
                     &cancel,
-                )
+                ))
                 .await
                 .map_err(io::Error::other)
             }
